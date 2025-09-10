@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Overlay - README</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            line-height: 1.6;
+            margin: 2em;
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 1em;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>Dashboard Overlay (Painel-Apenas) – README</h1>
+    <p>Projeto em Python para simular e/ou ler dados (Raspberry Pi) e sobrepor valores em pontos de uma imagem (ex.: fluxograma da planta). Esta é uma versão simplificada que exibe apenas o painel principal, sem a janela de gráficos.</p>
+    <h2>1) Requisitos</h2>
+    <ul>
+        <li><strong>Python 3.9+</strong> (recomendado 3.10/3.11)</li>
+        <li><strong>Sistema</strong>: macOS, Windows ou Linux (Raspberry Pi opcional)</li>
+    </ul>
+    <h3>Dependências</h3>
+    <pre><code>pip install opencv-python</code></pre>
+    <p>Se você usa virtualenv:</p>
+    <pre><code>python -m venv .venv
+source .venv/bin/activate     # macOS/Linux
+# .venv\Scripts\activate      # Windows
+pip install opencv-python</code></pre>
+    <h2>2) Arquivo principal</h2>
+    <p>O projeto é um único arquivo:</p>
+    <ul>
+        <li><code>dashboard.py</code></li>
+    </ul>
+    <p>Coloque a sua imagem de fundo (jpg/png) na mesma pasta do projeto.</p>
+    <h2>3) Como rodar</h2>
+    <pre><code>python dashboard.py --img "/caminho/para/sua_imagem.jpg" --scale 1.0</code></pre>
+    <p><strong>Parâmetros:</strong></p>
+    <ul>
+        <li><code>--img</code>: caminho da imagem de fundo (obrigatório)</li>
+        <li><code>--scale</code>: escala da janela principal (opcional). Ex.: 0.8, 1.0, 1.2</li>
+    </ul>
+    <p>Na janela <strong>Painel</strong>, você verá os valores sobrepostos nos campos da sua imagem.</p>
+    <h2>4) Modo Simulação</h2>
+    <p>Por padrão, o script é executado em modo de simulação (<code>USE_RPI = False</code>). Neste modo:</p>
+    <ul>
+        <li>Os valores são gerados aleatoriamente para simular a chegada de dados de sensores.</li>
+        <li>As atualizações ocorrem a cada 2 segundos com pequenas variações para parecerem mais realistas.</li>
+        <li>Não há controles de teclado para ajustar os valores; a simulação é automática.</li>
+    </ul>
+    <h2>5) Controles</h2>
+    <ul>
+        <li><strong>ESC</strong> ou <strong>Ctrl+C</strong>: fecha o programa.</li>
+    </ul>
+    <h2>6) Posicionamento dos valores na imagem</h2>
+    <p>As posições dos 8 campos são proporcionais à imagem (0.0–1.0) e podem ser ajustadas no dicionário <code>POSITIONS_NORM</code> dentro do arquivo <code>dashboard.py</code>.</p>
+    <p>Para encontrar as coordenadas, mova o cursor sobre a imagem; no canto superior esquerdo aparecem as coordenadas normalizadas (x, y) que você pode usar.</p>
+</body>
+</html>

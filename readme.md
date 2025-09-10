@@ -32,19 +32,26 @@ Coloque a sua imagem de fundo (jpg/png) na mesma pasta do projeto.
 
 ## 3) Como rodar
 
+### Modo Simulação (padrão)
 ```bash
-python dashboard.py --img "/caminho/para/sua_imagem.jpg" --scale 1.0
+python dashboard.py --img assets/base.jpeg
+```
+
+### Modo Raspberry Pi
+```bash
+python dashboard.py --img assets/base.jpeg --use-rpi
 ```
 
 **Parâmetros:**
-- `--img`: caminho da imagem de fundo (obrigatório)
-- `--scale`: escala da janela principal (opcional). Ex.: 0.8, 1.0, 1.2
+- `--img`: caminho da imagem de fundo (obrigatório).
+- `--scale`: escala da janela principal (opcional). Ex.: 0.8, 1.0, 1.2.
+- `--use-rpi`: ativa o modo de leitura dos sensores no Raspberry Pi (opcional).
 
 Na janela **Painel**, você verá os valores sobrepostos nos campos da sua imagem.
 
 ## 4) Modo Simulação
 
-Por padrão, o script é executado em modo de simulação (`USE_RPI = False`). Neste modo:
+Por padrão, ou quando a flag `--use-rpi` não está presente, o script é executado em modo de simulação. Neste modo:
 
 - Os valores são gerados aleatoriamente para simular a chegada de dados de sensores.
 - As atualizações ocorrem a cada 2 segundos com pequenas variações para parecerem mais realistas.

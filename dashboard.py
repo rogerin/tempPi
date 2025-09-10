@@ -5,8 +5,14 @@
 import cv2, numpy as np, random, argparse, time, math, warnings, signal
 from datetime import datetime
 
-# ============= 1) CHAVE DE EXECUÇÃO (RPi) =============
-USE_RPI = False  # False = simulação; True = tenta usar Raspberry Pi (GPIO/MAX6675)
+# ============= 1) ARGUMENTOS DE LINHA DE COMANDO =============
+ap = argparse.ArgumentParser()
+ap.add_argument("--img", required=True, help="Caminho da imagem de fundo.")
+ap.add_argument("--scale", type=float, default=1.0, help="Escala da janela (ex.: 1.0).")
+ap.add_argument("--use-rpi", action="store_true", help="Ativar modo Raspberry Pi (GPIO/MAX6675).")
+args = ap.parse_args()
+
+USE_RPI = args.use_rpi
 
 # ============= 2) PINAGENS (BCM) =============
 THERMO_TORRE_1 = (25, 24, 18)
@@ -183,11 +189,6 @@ def draw_mouse_pos(frame):
 
 # ============= 10) MAIN LOOP =============
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--img", required=True, help="Caminho da imagem de fundo.")
-    ap.add_argument("--scale", type=float, default=1.0, help="Escala da janela (ex.: 1.0).")
-    args = ap.parse_args()
-
     bg = cv2.imread(args.img)
     if bg is None:
         raise SystemExit(f"Não consegui abrir a imagem: {args.img}")

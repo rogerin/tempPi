@@ -61,7 +61,6 @@ OUTLINE_THICKNESS = 3
 SHADOW = False
 
 # ============= 4) FLAGS e SAÍDA LIMPA =============
-DIRTY = True   # recalcular valores
 STOP  = False  # sair sem traceback
 
 def _sigint_handler(sig, frame):
@@ -71,30 +70,65 @@ signal.signal(signal.SIGINT, _sigint_handler)
 
 # ============= 5) RPi opcional (fallback) =============
 _rpi_ready = False
-try:
-    if USE_RPI:
+thermo_sensors = {}
+_hardware_init_success = True # Nova flag para validação estrita
+
+if USE_RPI:
+    print("Modo Raspberry Pi ativado. Validando hardware...")
+    failed_sensors = []
+    try:
         import RPi.GPIO as GPIO
         GPIO.setmode(GPIO.BCM)
-        for p in [PIN_VENTILADOR, PIN_RESISTENCIA, PIN_MOTOR_ROSCA, PIN_TAMBOR_DIR, PIN_TAMBOR_PUL]:
-            GPIO.setup(p, GPIO.OUT, initial=GPIO.LOW)
-        thermo = {}
+        output_pins = [PIN_VENTILADOR, PIN_RESISTENCIA, PIN_MOTOR_ROSCA, PIN_TAMBOR_DIR, PIN_TAMBOR_PUL]
+        for pin in output_pins:
+            GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
+        _rpi_ready = True
+        print("GPIOs de saída configurados com sucesso.")
+    except Exception as e:
+        print(f"[ERRO CRÍTICO] Falha ao inicializar RPi.GPIO: {e}.")
+        _hardware_init_success = False
+
+    if _hardware_init_success:
         try:
             import MAX6675.MAX6675 as MAX6675
-            thermo = {
-                "Torre Nível 1": MAX6675.MAX6675(*THERMO_TORRE_1),
-                "Torre Nível 2": MAX6675.MAX6675(*THERMO_TORRE_2),
-                "Torre Nível 3": MAX6675.MAX6675(*THERMO_TORRE_3),
-                "Temp Tanque":   MAX6675.MAX6675(*THERMO_TANQUE),
-                "Temp Saída Gases": MAX6675.MAX6675(*THERMO_GASES),
-                "Temp Forno":    MAX6675.MAX6675(*THERMO_FORNO),
+            thermo_configs = {
+                "Torre Nível 1": THERMO_TORRE_1,
+                "Torre Nível 2": THERMO_TORRE_2,
+                "Torre Nível 3": THERMO_TORRE_3,
+                "Temp Tanque":   THERMO_TANQUE,
+                "Temp Saída Gases": THERMO_GASES,
+                "Temp Forno":    THERMO_FORNO,
             }
-        except Exception:
-            thermo = {}
-        _rpi_ready = True
-except Exception:
-    _rpi_ready = False
-if USE_RPI and not _rpi_ready:
-    warnings.warn("USE_RPI=True, mas GPIO/termopar não inicializaram. Usando simulação.")
+
+            for name, pins in thermo_configs.items():
+                try:
+                    sensor = MAX6675.MAX6675(*pins)
+                    sensor.readTempC() # Leitura de validação
+                    thermo_sensors[name] = sensor
+                    print(f"  - Sensor '{name}'... OK")
+                except Exception as e:
+                    failed_sensors.append(f"{name} (Pinos: {pins})")
+            
+            if failed_sensors:
+                print("\n[ERRO CRÍTICO] Falha ao inicializar os seguintes sensores:")
+                for sensor_info in failed_sensors:
+                    print(f"  - {sensor_info}")
+                _hardware_init_success = False
+            else:
+                print("Todos os sensores de temperatura foram validados com sucesso.")
+
+        except ImportError:
+            print("\n[ERRO CRÍTICO] Biblioteca MAX6675 não encontrada. Instale-a para usar o modo RPi.")
+            _hardware_init_success = False
+        except Exception as e:
+            print(f"\n[ERRO CRÍTICO] Ocorreu um erro inesperado durante a validação dos sensores: {e}")
+            _hardware_init_success = False
+
+# Fallback para simulação se a flag RPi não estiver ativa
+if not USE_RPI:
+    print("Executando em modo de simulação (sem hardware).")
+
+
 
 # ============= 6) SIMULAÇÃO / ESTADOS =============
 # Valores base (você vai alterar por teclado)
@@ -131,12 +165,21 @@ def noise(val, amp):
     return random.uniform(-amp, amp)
 
 def read_temp(label, base_c, amp):
-    if USE_RPI and _rpi_ready and label in globals().get("thermo", {}):
+    # Tenta a leitura do sensor real se ele foi inicializado com sucesso
+    if USE_RPI and label in thermo_sensors:
         try:
-            c = float(thermo[label].readTempC())
-            return round(c, 1)
+            c = float(thermo_sensors[label].readTempC())
+            # Adiciona uma verificação para leituras inválidas comuns (ex: 0.0 ou NaN)
+            if c > 0 and not math.isnan(c):
+                return round(c, 1)
+            else:
+                # Se a leitura for inválida, recorre à simulação para este ciclo
+                pass
         except Exception:
+            # Em caso de erro de leitura, também recorre à simulação
             pass
+    
+    # Fallback para simulação
     return round(base_c + noise(base_c, amp/10.0), 1)
 
 def read_pressao_bar(base_bar, amp):
@@ -189,9 +232,17 @@ def draw_mouse_pos(frame):
 
 # ============= 10) MAIN LOOP =============
 def main():
+    # Validação estrita de hardware antes de iniciar a UI
+    if USE_RPI and not _hardware_init_success:
+        print("\nO programa não pode iniciar em modo Raspberry Pi devido a erros de hardware.")
+        print("Por favor, verifique as conexões dos sensores, a configuração de pinos e as bibliotecas.")
+        print("Para rodar em modo de simulação, execute o script sem a flag '--use-rpi'.")
+        raise SystemExit()
+
     bg = cv2.imread(args.img)
     if bg is None:
         raise SystemExit(f"Não consegui abrir a imagem: {args.img}")
+
 
     if args.scale != 1.0:
         bg = cv2.resize(bg, None, fx=args.scale, fy=args.scale, interpolation=cv2.INTER_AREA)
@@ -206,32 +257,38 @@ def main():
     cv2.resizeWindow("Painel", W, H)
     cv2.setMouseCallback("Painel", mouse_callback, bg)
 
-    last_values = {}
-    global DIRTY, STOP, noise_amp
+    values = {}
+    last_update_time = 0
+    update_interval = 2  # segundos
+    global STOP
 
     while True:
-        # só recalcula quando DIRTY
-        if DIRTY or not last_values:
+        now = time.time()
+        # Lógica de atualização de valores
+        # Em modo RPi, lê continuamente. Em simulação, atualiza a cada 2 segundos.
+        if USE_RPI or (now - last_update_time > update_interval):
             values = compute_values()
-            last_values = values
-            DIRTY = False
-        else:
-            values = last_values
+            if not USE_RPI:
+                last_update_time = now
+
+        # Evita erro no primeiro loop de simulação antes que os valores sejam gerados
+        if not values:
+            time.sleep(0.1)
+            continue
 
         # Painel
         frame = bg.copy()
         ts = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         draw_centered_text(frame, ts, (int(0.5*W), int(0.05*H)), font_scale*0.8, max(1, thickness-1))
         for name in FIELD_NAMES:
-            draw_centered_text(frame, str(values[name]), abs_pos[name], font_scale, thickness)
+            if name in values:
+                draw_centered_text(frame, str(values[name]), abs_pos[name], font_scale, thickness)
         draw_mouse_pos(frame)
-
-        
 
         cv2.imshow("Painel", frame)
 
         # Teclado
-        key = cv2.waitKey(10)
+        key = cv2.waitKey(100) # Aumentado para reduzir uso de CPU
         if key == 27 or STOP:  # ESC ou Ctrl+C
             break
 

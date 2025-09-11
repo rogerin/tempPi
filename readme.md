@@ -284,7 +284,86 @@ sudo python3 dashboard.py --img assets/base.jpeg --use-rpi
 
 - **ESC** ou **Ctrl+C**: fecha o programa.
 
-## 8) Posicionamento dos valores na imagem
+## 8) Sistema de Logging e Visualização Web
+
+### 🗄️ **Banco de Dados SQLite**
+
+O sistema agora salva **automaticamente** todas as leituras dos sensores em um banco SQLite:
+
+- 📊 **Armazenamento automático** - Cada leitura é salva com timestamp
+- 🔍 **Dados estruturados** - Temperatura, pressão, velocidade organizados
+- 📈 **Histórico completo** - Todas as leituras ficam armazenadas
+- ⚡ **Performance otimizada** - Índices para consultas rápidas
+
+### 🌐 **Servidor Web com Dashboard**
+
+**Novo servidor HTTP separado** para visualização avançada dos dados:
+
+```bash
+# Terminal 1: Executar coleta de dados
+python3 dashboard.py --img assets/base.jpeg --use-rpi
+
+# Terminal 2: Executar servidor web
+python3 sensor_server.py
+
+# Acessar: http://localhost:5000
+```
+
+**🎯 Funcionalidades do Dashboard Web:**
+
+#### 📊 **Visualizações Avançadas:**
+- **Gráficos em tempo real** com Chart.js
+- **Múltiplos tipos** - Linha, área, estatísticas
+- **Responsivo** - Funciona em desktop e mobile
+- **Interativo** - Zoom, tooltip, navegação
+
+#### 🔍 **Filtros e Busca:**
+- **Por sensor** - Visualizar dados específicos
+- **Por data** - Período customizável (1h a 1 semana)
+- **Paginação** - Navegação eficiente em grandes volumes
+- **Exportação** - Baixar dados filtrados
+
+#### 📈 **Estatísticas:**
+- **Valores atuais** - Última leitura de cada sensor
+- **Médias e extremos** - Min/max/média por período
+- **Contadores** - Total de leituras, sensores ativos
+- **Performance** - Leituras nas últimas 24h
+
+#### 🎨 **Interface Moderna:**
+- **Bootstrap 5** - Design responsivo e moderno
+- **Font Awesome** - Ícones profissionais
+- **Cores intuitivas** - Temperatura (vermelho), Pressão (azul), Velocidade (verde)
+- **Auto-refresh** - Atualização automática opcional
+
+### 🚀 **Como Usar:**
+
+#### **Instalação Completa:**
+```bash
+# Instalar dependências (inclui Flask)
+pip install flask werkzeug opencv-python numpy RPi.GPIO
+
+# Ou usar o script automático
+./install_rpi.sh
+```
+
+#### **Execução:**
+```bash
+# Demonstração rápida
+./run_demo.sh
+
+# Ou executar manualmente:
+# 1. Coletar dados
+python3 dashboard.py --img assets/base.jpeg
+
+# 2. Visualizar na web
+python3 sensor_server.py
+```
+
+#### **Acesso:**
+- **Dashboard Web**: http://localhost:5000
+- **Para rede local**: Execute com `--host 0.0.0.0`
+
+## 9) Posicionamento dos valores na imagem
 
 As posições dos 8 campos são proporcionais à imagem (0.0–1.0) e podem ser ajustadas no dicionário `POSITIONS_NORM` dentro do arquivo `dashboard.py`.
 

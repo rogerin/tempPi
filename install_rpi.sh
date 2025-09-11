@@ -34,48 +34,28 @@ source .venv/bin/activate
 
 echo "📚 Instalando dependências básicas..."
 pip install --upgrade pip
-pip install opencv-python numpy RPi.GPIO
+pip install opencv-python numpy RPi.GPIO flask werkzeug
 
-echo "🌡️  Tentando instalar bibliotecas MAX6675..."
+echo "⚡ Implementação nativa MAX6675 - Não precisa de bibliotecas externas!"
+echo "   O sistema agora usa protocolo SPI nativo com RPi.GPIO"
 
-# Lista de bibliotecas para tentar
-libraries=("MAX6675-RPi" "max6675" "MAX6675")
-installed=false
-
-for lib in "${libraries[@]}"; do
-    echo "   Tentando instalar $lib..."
-    if pip install "$lib" 2>/dev/null; then
-        echo "   ✅ $lib instalado com sucesso!"
-        installed=true
-        break
-    else
-        echo "   ❌ Falha ao instalar $lib"
-    fi
-done
-
-if [ "$installed" = true ]; then
-    echo ""
-    echo "🎉 INSTALAÇÃO CONCLUÍDA COM SUCESSO!"
-    echo ""
-    echo "✅ Próximos passos:"
-    echo "   1. Ativar o ambiente virtual:"
-    echo "      source .venv/bin/activate"
-    echo "   2. Executar o programa:"
-    echo "      python dashboard.py --img assets/base.jpeg --use-rpi"
-    echo ""
-else
-    echo ""
-    echo "⚠️  INSTALAÇÃO PARCIALMENTE CONCLUÍDA"
-    echo ""
-    echo "❌ Nenhuma biblioteca MAX6675 foi instalada automaticamente."
-    echo "🔧 Tente instalar manualmente:"
-    echo "   source .venv/bin/activate"
-    echo "   pip install MAX6675-RPi"
-    echo "   # OU"
-    echo "   pip install max6675"
-    echo ""
-    echo "📱 O programa ainda funcionará em modo simulação:"
-    echo "   python dashboard.py --img assets/base.jpeg"
-fi
+echo ""
+echo "🎉 INSTALAÇÃO CONCLUÍDA COM SUCESSO!"
+echo ""
+echo "✅ Próximos passos:"
+echo "   1. Ativar o ambiente virtual:"
+echo "      source .venv/bin/activate"
+echo "   2. Executar o dashboard principal:"
+echo "      python dashboard.py --img assets/base.jpeg --use-rpi"
+echo "   3. Em outro terminal, executar o servidor web:"
+echo "      python sensor_server.py"
+echo "   4. Acessar o dashboard web:"
+echo "      http://localhost:5000"
+echo ""
+echo "🌐 NOVA FUNCIONALIDADE: Servidor Web com Gráficos!"
+echo "   • Visualização de dados em tempo real"
+echo "   • Gráficos interativos"
+echo "   • Filtros por sensor e data"
+echo "   • Histórico completo no SQLite"
 
 echo "💡 Dica: Execute 'python dashboard.py --help' para ver todas as opções."

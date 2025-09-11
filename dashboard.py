@@ -2,7 +2,7 @@
 # Painel com overlay sobre imagem, controle por teclado (sem depender de sliders),
 # min/max com efeito visual, saída limpa (ESC/Ctrl+C) e gráficos OpenCV (sem Matplotlib).
 
-import cv2, numpy as np, random, argparse, time, math, warnings, signal
+import cv2, numpy as np, random, argparse, time, math, warnings, signal, sqlite3, os
 from datetime import datetime
 
 # ============= 1) ARGUMENTOS DE LINHA DE COMANDO =============
@@ -86,7 +86,70 @@ OUTLINE = True
 OUTLINE_THICKNESS = 3
 SHADOW = False
 
-# ============= 4) FLAGS e SAÍDA LIMPA =============
+# ============= 4) BANCO DE DADOS SQLite =============
+DATABASE_PATH = "sensor_data.db"
+
+def init_database():
+    """Inicializa banco de dados SQLite para logging dos sensores"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    # Criar tabela de leituras dos sensores
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sensor_readings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            sensor_name TEXT NOT NULL,
+            temperature REAL,
+            pressure REAL,
+            velocity REAL,
+            sensor_type TEXT NOT NULL,
+            pins TEXT,
+            mode TEXT DEFAULT 'simulation'
+        )
+    ''')
+    
+    # Índices para melhor performance
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_timestamp ON sensor_readings(timestamp)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_sensor_name ON sensor_readings(sensor_name)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_sensor_type ON sensor_readings(sensor_type)')
+    
+    conn.commit()
+    conn.close()
+    print(f"📊 Banco de dados inicializado: {DATABASE_PATH}")
+
+def log_sensor_reading(sensor_name, value, sensor_type, pins=None, mode="simulation"):
+    """Salva leitura do sensor no banco de dados"""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Determinar tipo de valor
+        temperature = None
+        pressure = None
+        velocity = None
+        
+        if sensor_type == "temperature":
+            temperature = value
+        elif sensor_type == "pressure":
+            pressure = value
+        elif sensor_type == "velocity":
+            velocity = value
+        
+        pins_str = str(pins) if pins else None
+        
+        cursor.execute('''
+            INSERT INTO sensor_readings 
+            (sensor_name, temperature, pressure, velocity, sensor_type, pins, mode)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (sensor_name, temperature, pressure, velocity, sensor_type, pins_str, mode))
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"❌ Erro ao salvar no banco: {e}")
+
+# ============= 5) FLAGS e SAÍDA LIMPA =============
 STOP  = False  # sair sem traceback
 
 def _sigint_handler(sig, frame):
@@ -398,7 +461,23 @@ def read_velocidade_rpm(base_rpm, amp):
     return max(0, int(round(val)))
 
 def compute_values():
-    return {
+    """Computa valores dos sensores e salva no banco de dados"""
+    mode = "rpi" if USE_RPI else "simulation"
+    
+    # Definir mapeamento de sensores para pinos
+    sensor_pins = {
+        "Torre Nível 1": THERMO_TORRE_1,
+        "Torre Nível 2": THERMO_TORRE_2, 
+        "Torre Nível 3": THERMO_TORRE_3,
+        "Temp Tanque": THERMO_TANQUE,
+        "Temp Saída Gases": THERMO_GASES,
+        "Temp Forno": THERMO_FORNO,
+        "Pressão Gases": (PRESSAO_1_PIN,),
+        "Velocidade": None,
+    }
+    
+    # Ler valores dos sensores
+    values = {
         "Temp Forno":        read_temp("Temp Forno", base_values["Temp Forno"], noise_amp),
         "Velocidade":        read_velocidade_rpm(base_values["Velocidade"], noise_amp),
         "Temp Tanque":       read_temp("Temp Tanque", base_values["Temp Tanque"], noise_amp),
@@ -408,6 +487,23 @@ def compute_values():
         "Torre Nível 2":     read_temp("Torre Nível 2", base_values["Torre Nível 2"], noise_amp),
         "Torre Nível 3":     read_temp("Torre Nível 3", base_values["Torre Nível 3"], noise_amp),
     }
+    
+    # Salvar no banco de dados
+    for sensor_name, value in values.items():
+        # Determinar tipo do sensor
+        if "Temp" in sensor_name or "Torre" in sensor_name:
+            sensor_type = "temperature"
+        elif "Pressão" in sensor_name:
+            sensor_type = "pressure"
+        elif "Velocidade" in sensor_name:
+            sensor_type = "velocity"
+        else:
+            sensor_type = "unknown"
+        
+        pins = sensor_pins.get(sensor_name)
+        log_sensor_reading(sensor_name, value, sensor_type, pins, mode)
+    
+    return values
 
 # ============= 8) DESENHO TEXTO, HELP e MOUSE =============
 def draw_centered_text(img, text, center_xy, font_scale, thickness, color=TEXT_COLOR):
@@ -439,6 +535,9 @@ def draw_mouse_pos(frame):
 
 # ============= 10) MAIN LOOP =============
 def main():
+    # Inicializar banco de dados
+    init_database()
+    
     # Validação estrita de hardware antes de iniciar a UI
     if USE_RPI and not _hardware_init_success:
         print("\nO programa não pode iniciar em modo Raspberry Pi devido a erros de hardware.")

@@ -16,16 +16,9 @@ pip install opencv-python numpy
 
 #### Instalação Completa (Raspberry Pi)
 
-**🚀 Instalação Automática (Recomendado):**
+**🚀 Instalação Simples (Sem bibliotecas externas):**
 ```bash
-# Executar script de instalação automática
-chmod +x install_rpi.sh
-./install_rpi.sh
-```
-
-**📝 Instalação Manual:**
-```bash
-# Instalar dependências do sistema
+# Instalar apenas dependências básicas
 sudo apt update
 sudo apt install python3-dev python3-pip python3-venv
 
@@ -33,23 +26,21 @@ sudo apt install python3-dev python3-pip python3-venv
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Instalar dependências básicas
+# Instalar apenas as dependências essenciais
 pip install opencv-python numpy RPi.GPIO
-
-# Tentar instalar bibliotecas MAX6675 (uma das opções):
-pip install MAX6675-RPi
-# OU se a primeira falhar:
-pip install max6675
-# OU se ainda falhar:
-pip install MAX6675
 ```
+
+**📝 Instalação Automática (Script):**
+```bash
+# Executar script de instalação automática
+chmod +x install_rpi.sh
+./install_rpi.sh
+```
+
+**⚡ Não precisa mais de bibliotecas MAX6675!**
+O sistema agora usa implementação nativa que funciona apenas com `RPi.GPIO`.
 
 #### Resolução de Problemas Comuns
-
-**Se `MAX6675-RPi` não funcionar, tente:**
-```bash
-pip install max6675
-```
 
 **Se houver erro de permissão GPIO:**
 ```bash
@@ -59,9 +50,7 @@ sudo usermod -a -G gpio $USER
 
 **Instalação sem ambiente virtual:**
 ```bash
-pip install opencv-python numpy
-# Para Raspberry Pi adicionar:
-pip install RPi.GPIO MAX6675-RPi
+pip install opencv-python numpy RPi.GPIO
 ```
 
 ## 2) Arquivo principal
@@ -164,6 +153,17 @@ Por padrão, ou quando a flag `--use-rpi` não está presente, o script é execu
 
 ## 5) Sistema de Validação de Sensores
 
+### 🔍 Implementação Nativa MAX6675
+
+O sistema agora inclui uma **implementação nativa** do protocolo MAX6675 usando apenas `RPi.GPIO`:
+
+**🎉 Vantagens da Implementação Nativa:**
+- ✅ **Zero dependências externas** - Funciona apenas com RPi.GPIO
+- 🚀 **Instalação simples** - Não precisa instalar bibliotecas MAX6675
+- 🔧 **Protocolo SPI nativo** - Implementação bit-bang do protocolo SPI
+- 📡 **Comunicação direta** - Controle total sobre timing e sinais
+- 🛡️ **Detecção de erros** - Verifica problemas no termopar automaticamente
+
 ### 🔍 Teste Automático de Sensores (Modo Raspberry Pi)
 
 Quando executado com `--use-rpi`, o sistema agora inclui uma **validação robusta** de todos os sensores antes de iniciar:
@@ -177,6 +177,10 @@ Quando executado com `--use-rpi`, o sistema agora inclui uma **validação robus
 
 **Exemplo de saída da validação:**
 ```
+🔍 Iniciando implementação nativa MAX6675 (sem bibliotecas externas)...
+✅ Usando implementação nativa MAX6675 com RPi.GPIO!
+📡 Protocolo SPI implementado diretamente - não precisa de bibliotecas externas!
+
 🔍 Iniciando teste detalhado dos sensores de temperatura...
 ⏱️  Cada sensor será testado 3 vezes para garantir funcionamento correto.
 
@@ -242,18 +246,10 @@ pip install RPi.GPIO
 sudo apt install python3-rpi.gpio
 ```
 
-#### Erro: "No module named 'MAX6675'"
-```bash
-# Solução 1: Biblioteca principal
-pip install MAX6675-RPi
+#### ⚡ Sensores MAX6675 - Sem Bibliotecas Necessárias!
 
-# Solução 2: Biblioteca alternativa
-pip install max6675
-
-# Solução 3: Instalar dependências do sistema primeiro
-sudo apt install python3-dev python3-pip
-pip install MAX6675-RPi
-```
+O sistema agora usa **implementação nativa** que funciona apenas com `RPi.GPIO`. 
+Não é mais necessário instalar bibliotecas MAX6675 externas!
 
 #### Erro: "Permission denied" nos GPIOs
 ```bash

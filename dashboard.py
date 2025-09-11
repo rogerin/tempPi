@@ -144,167 +144,180 @@ if USE_RPI:
         _hardware_init_success = False
 
     if _hardware_init_success:
-        # Tentar importar diferentes bibliotecas MAX6675 disponíveis
-        MAX6675_lib = None
-        library_used = None
+        # Implementação nativa do MAX6675 usando apenas RPi.GPIO
+        print("🔍 Iniciando implementação nativa MAX6675 (sem bibliotecas externas)...")
         
-        print("🔍 Procurando bibliotecas MAX6675 disponíveis...")
-        
-        # Lista de bibliotecas para tentar (em ordem de preferência)
-        max6675_libraries = [
-            ("MAX6675.MAX6675", "MAX6675-RPi", "import MAX6675.MAX6675 as MAX6675_lib"),
-            ("max6675", "max6675", "import max6675 as MAX6675_lib"),
-            ("MAX6675", "MAX6675", "import MAX6675 as MAX6675_lib"),
-        ]
-        
-        for lib_name, pip_name, import_cmd in max6675_libraries:
-            try:
-                print(f"  📦 Tentando biblioteca '{lib_name}'...")
-                exec(import_cmd)
-                library_used = lib_name
-                print(f"  ✅ Biblioteca '{lib_name}' encontrada e carregada!")
-                break
-            except ImportError:
-                print(f"  ❌ Biblioteca '{lib_name}' não encontrada")
-                continue
-        
-        if MAX6675_lib is None:
-            print("\n💥 [ERRO] Nenhuma biblioteca MAX6675 encontrada!")
-            print("🔧 SOLUÇÕES DISPONÍVEIS:")
-            print("   1. Instalar MAX6675-RPi (recomendado):")
-            print("      pip install MAX6675-RPi")
-            print("   2. Instalar max6675 (alternativa):")
-            print("      pip install max6675")
-            print("   3. Instalar MAX6675 genérico:")
-            print("      pip install MAX6675")
-            print("   4. Instalar dependências do sistema primeiro:")
-            print("      sudo apt update")
-            print("      sudo apt install python3-dev python3-pip")
-            print("      pip install MAX6675-RPi")
-            print("\n🚀 SOLUÇÃO RÁPIDA - Execute um destes comandos:")
-            print("   pip install MAX6675-RPi")
-            print("   # OU")
-            print("   pip install max6675")
+        class NativeMAX6675:
+            """Implementação nativa do protocolo MAX6675 usando apenas RPi.GPIO"""
             
-            # Oferecer opção de continuar com simulação de sensores
-            print(f"\n🤔 ALTERNATIVA: Executar com sensores simulados no Raspberry Pi?")
-            print("   O programa pode funcionar com dados simulados para teste.")
-            print("   Para isso, execute sem --use-rpi ou pressione Ctrl+C e reinstale as bibliotecas.")
+            def __init__(self, sck_pin, cs_pin, so_pin):
+                """
+                Inicializa sensor MAX6675
+                sck_pin: Serial Clock (SCK)
+                cs_pin: Chip Select (CS) 
+                so_pin: Serial Output (SO/MISO)
+                """
+                self.sck_pin = sck_pin
+                self.cs_pin = cs_pin
+                self.so_pin = so_pin
+                
+                # Configurar pinos
+                GPIO.setup(self.sck_pin, GPIO.OUT)
+                GPIO.setup(self.cs_pin, GPIO.OUT)
+                GPIO.setup(self.so_pin, GPIO.IN)
+                
+                # Estado inicial: CS alto (inativo), SCK baixo
+                GPIO.output(self.cs_pin, GPIO.HIGH)
+                GPIO.output(self.sck_pin, GPIO.LOW)
+                
+            def readTempC(self):
+                """Lê temperatura em Celsius"""
+                try:
+                    # Iniciar comunicação SPI
+                    GPIO.output(self.cs_pin, GPIO.LOW)  # Ativar sensor
+                    time.sleep(0.001)  # Aguardar estabilização (1ms)
+                    
+                    # Ler 16 bits de dados
+                    data = 0
+                    for i in range(16):
+                        # Clock alto
+                        GPIO.output(self.sck_pin, GPIO.HIGH)
+                        time.sleep(0.0001)  # 100us
+                        
+                        # Ler bit
+                        bit = GPIO.input(self.so_pin)
+                        data = (data << 1) | bit
+                        
+                        # Clock baixo
+                        GPIO.output(self.sck_pin, GPIO.LOW)
+                        time.sleep(0.0001)  # 100us
+                    
+                    # Finalizar comunicação
+                    GPIO.output(self.cs_pin, GPIO.HIGH)  # Desativar sensor
+                    
+                    # Verificar se há erro no termopar (bit 2)
+                    if data & 0x4:
+                        raise ValueError("Erro no termopar - termopar desconectado ou com problema")
+                    
+                    # Extrair dados de temperatura (bits 15-3, ignorar bits 2-0)
+                    temp_data = (data >> 3) & 0x1FFF  # 13 bits de temperatura
+                    
+                    # Converter para temperatura (resolução 0.25°C por bit)
+                    temperature = temp_data * 0.25
+                    
+                    return temperature
+                    
+                except Exception as e:
+                    raise Exception(f"Erro na leitura SPI: {e}")
+            
+            def read(self):
+                """Método alternativo para compatibilidade"""
+                return self.readTempC()
+                
+            def readTemperature(self):
+                """Método alternativo para compatibilidade"""
+                return self.readTempC()
+        
+        # Usar implementação nativa
+        MAX6675_lib = NativeMAX6675
+        library_used = "Implementação Nativa (RPi.GPIO)"
+        print(f"✅ Usando implementação nativa MAX6675 com RPi.GPIO!")
+        print("📡 Protocolo SPI implementado diretamente - não precisa de bibliotecas externas!")
+        
+        thermo_configs = {
+            "Torre Nível 1": THERMO_TORRE_1,
+            "Torre Nível 2": THERMO_TORRE_2,
+            "Torre Nível 3": THERMO_TORRE_3,
+            "Temp Tanque":   THERMO_TANQUE,
+            "Temp Saída Gases": THERMO_GASES,
+            "Temp Forno":    THERMO_FORNO,
+        }
+
+        print("\n🔍 Iniciando teste detalhado dos sensores de temperatura...")
+        print("⏱️  Cada sensor será testado 3 vezes para garantir funcionamento correto.\n")
+        
+        def test_sensor_with_retries(name, pins, max_attempts=3):
+            """Testa um sensor específico com múltiplas tentativas"""
+            print(f"📡 Testando sensor '{name}' (Pinos SCK:{pins[0]}, CS:{pins[1]}, SO:{pins[2]})...")
+            
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    # Criar instância do sensor usando implementação nativa
+                    sensor = MAX6675_lib(*pins)
+                    
+                    # Pequena pausa para estabilização
+                    time.sleep(0.5)
+                    
+                    # Ler temperatura usando implementação nativa
+                    temp = sensor.readTempC()
+                    
+                    # Validar se a leitura é válida
+                    if temp is None or math.isnan(temp) or temp < -50 or temp > 1000:
+                        raise ValueError(f"Leitura inválida: {temp}°C")
+                    
+                    # Teste bem-sucedido
+                    print(f"  ✅ Tentativa {attempt}/3: SUCESSO - Temperatura: {temp:.1f}°C")
+                    return sensor, temp
+                        
+                except Exception as e:
+                    print(f"  ❌ Tentativa {attempt}/3: FALHA - {str(e)}")
+                    if attempt < max_attempts:
+                        print(f"     🔄 Aguardando 1s antes da próxima tentativa...")
+                        time.sleep(1)
+                    else:
+                        print(f"     💥 Sensor '{name}' falhou em todas as tentativas!")
+            
+            return None, None
+
+        # Testar cada sensor individualmente
+        sensor_results = {}
+        total_sensors = len(thermo_configs)
+        working_sensors = 0
+        
+        for i, (name, pins) in enumerate(thermo_configs.items(), 1):
+            print(f"\n[{i}/{total_sensors}] " + "="*50)
+            sensor, temp = test_sensor_with_retries(name, pins)
+            
+            if sensor is not None:
+                thermo_sensors[name] = sensor
+                sensor_results[name] = {"status": "OK", "temp": temp, "pins": pins}
+                working_sensors += 1
+                print(f"✨ Sensor '{name}' APROVADO!")
+            else:
+                sensor_results[name] = {"status": "FALHA", "temp": None, "pins": pins}
+                failed_sensors.append(f"{name} (Pinos: {pins})")
+                print(f"💀 Sensor '{name}' REPROVADO!")
+        
+        # Relatório final
+        print("\n" + "="*70)
+        print("📊 RELATÓRIO FINAL DE VALIDAÇÃO DOS SENSORES")
+        print("="*70)
+        print(f"✅ Sensores funcionando: {working_sensors}/{total_sensors}")
+        print(f"❌ Sensores com falha: {len(failed_sensors)}/{total_sensors}")
+        
+        if working_sensors > 0:
+            print(f"\n🎉 SENSORES APROVADOS:")
+            for name, result in sensor_results.items():
+                if result["status"] == "OK":
+                    print(f"  ✅ {name}: {result['temp']:.1f}°C (Pinos: {result['pins']})")
+        
+        if failed_sensors:
+            print(f"\n💥 SENSORES REPROVADOS:")
+            for name, result in sensor_results.items():
+                if result["status"] == "FALHA":
+                    print(f"  ❌ {name}: Sem resposta (Pinos: {result['pins']})")
+            
+            print(f"\n⚠️  ATENÇÃO: {len(failed_sensors)} sensor(es) não está(ão) funcionando!")
+            print("🔧 Verifique:")
+            print("   • Conexões físicas dos pinos")
+            print("   • Alimentação dos sensores (3.3V ou 5V)")
+            print("   • Soldas dos conectores")
+            print("   • Termopares conectados corretamente")
             
             _hardware_init_success = False
         else:
-            print(f"\n🎉 Usando biblioteca: {library_used}")
-            
-            thermo_configs = {
-                "Torre Nível 1": THERMO_TORRE_1,
-                "Torre Nível 2": THERMO_TORRE_2,
-                "Torre Nível 3": THERMO_TORRE_3,
-                "Temp Tanque":   THERMO_TANQUE,
-                "Temp Saída Gases": THERMO_GASES,
-                "Temp Forno":    THERMO_FORNO,
-            }
-
-            print("\n🔍 Iniciando teste detalhado dos sensores de temperatura...")
-            print("⏱️  Cada sensor será testado 3 vezes para garantir funcionamento correto.\n")
-            
-            def test_sensor_with_retries(name, pins, max_attempts=3):
-                """Testa um sensor específico com múltiplas tentativas"""
-                print(f"📡 Testando sensor '{name}' (Pinos SCK:{pins[0]}, CS:{pins[1]}, SO:{pins[2]})...")
-                
-                for attempt in range(1, max_attempts + 1):
-                    try:
-                        # Criar instância do sensor usando a biblioteca carregada
-                        if library_used == "MAX6675.MAX6675":
-                            sensor = MAX6675_lib.MAX6675(*pins)
-                        else:
-                            # Para outras bibliotecas, tentar instanciar diretamente
-                            sensor = MAX6675_lib(*pins)
-                        
-                        # Pequena pausa para estabilização
-                        time.sleep(0.5)
-                        
-                        # Tentar ler temperatura (diferentes métodos dependendo da biblioteca)
-                        if hasattr(sensor, 'readTempC'):
-                            temp = sensor.readTempC()
-                        elif hasattr(sensor, 'read'):
-                            temp = sensor.read()
-                        elif hasattr(sensor, 'readTemperature'):
-                            temp = sensor.readTemperature()
-                        else:
-                            # Tentar método padrão
-                            temp = sensor.readTempC()
-                        
-                        # Validar se a leitura é válida
-                        if temp is None or math.isnan(temp) or temp < -50 or temp > 1000:
-                            raise ValueError(f"Leitura inválida: {temp}°C")
-                        
-                        # Teste bem-sucedido
-                        print(f"  ✅ Tentativa {attempt}/3: SUCESSO - Temperatura: {temp:.1f}°C")
-                        return sensor, temp
-                        
-                    except Exception as e:
-                        print(f"  ❌ Tentativa {attempt}/3: FALHA - {str(e)}")
-                        if attempt < max_attempts:
-                            print(f"     🔄 Aguardando 1s antes da próxima tentativa...")
-                            time.sleep(1)
-                        else:
-                            print(f"     💥 Sensor '{name}' falhou em todas as tentativas!")
-                
-                return None, None
-
-            # Testar cada sensor individualmente
-            sensor_results = {}
-            total_sensors = len(thermo_configs)
-            working_sensors = 0
-            
-            for i, (name, pins) in enumerate(thermo_configs.items(), 1):
-                print(f"\n[{i}/{total_sensors}] " + "="*50)
-                sensor, temp = test_sensor_with_retries(name, pins)
-                
-                if sensor is not None:
-                    thermo_sensors[name] = sensor
-                    sensor_results[name] = {"status": "OK", "temp": temp, "pins": pins}
-                    working_sensors += 1
-                    print(f"✨ Sensor '{name}' APROVADO!")
-                else:
-                    sensor_results[name] = {"status": "FALHA", "temp": None, "pins": pins}
-                    failed_sensors.append(f"{name} (Pinos: {pins})")
-                    print(f"💀 Sensor '{name}' REPROVADO!")
-            
-            # Relatório final
-            print("\n" + "="*70)
-            print("📊 RELATÓRIO FINAL DE VALIDAÇÃO DOS SENSORES")
-            print("="*70)
-            print(f"✅ Sensores funcionando: {working_sensors}/{total_sensors}")
-            print(f"❌ Sensores com falha: {len(failed_sensors)}/{total_sensors}")
-            
-            if working_sensors > 0:
-                print(f"\n🎉 SENSORES APROVADOS:")
-                for name, result in sensor_results.items():
-                    if result["status"] == "OK":
-                        print(f"  ✅ {name}: {result['temp']:.1f}°C (Pinos: {result['pins']})")
-            
-            if failed_sensors:
-                print(f"\n💥 SENSORES REPROVADOS:")
-                for name, result in sensor_results.items():
-                    if result["status"] == "FALHA":
-                        print(f"  ❌ {name}: Sem resposta (Pinos: {result['pins']})")
-                
-                print(f"\n⚠️  ATENÇÃO: {len(failed_sensors)} sensor(es) não está(ão) funcionando!")
-                print("🔧 Verifique:")
-                print("   • Conexões físicas dos pinos")
-                print("   • Alimentação dos sensores (3.3V ou 5V)")
-                print("   • Soldas dos conectores")
-                print("   • Termopares conectados corretamente")
-                
-                _hardware_init_success = False
-            else:
-                print(f"\n🚀 TODOS OS SENSORES ESTÃO FUNCIONANDO PERFEITAMENTE!")
-                print("✨ Sistema pronto para operação!")
-
-            # Se chegou até aqui, a biblioteca foi carregada com sucesso
-            # O resto do código de validação já está implementado acima
-            pass
+            print(f"\n🚀 TODOS OS SENSORES ESTÃO FUNCIONANDO PERFEITAMENTE!")
+            print("✨ Sistema pronto para operação!")
 
 # Fallback para simulação se a flag RPi não estiver ativa
 if not USE_RPI:

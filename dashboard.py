@@ -102,6 +102,16 @@ _hardware_init_success = True # Nova flag para validação estrita
 if USE_RPI:
     print("Modo Raspberry Pi ativado. Validando hardware...")
     failed_sensors = []
+    
+    # Verificar se estamos realmente em um Raspberry Pi
+    try:
+        with open('/proc/cpuinfo', 'r') as f:
+            cpuinfo = f.read()
+        if 'BCM' not in cpuinfo and 'Raspberry Pi' not in cpuinfo:
+            print("⚠️  AVISO: Este não parece ser um Raspberry Pi real.")
+    except:
+        print("⚠️  AVISO: Não foi possível verificar se este é um Raspberry Pi.")
+    
     try:
         import RPi.GPIO as GPIO
         GPIO.setmode(GPIO.BCM)
@@ -109,9 +119,28 @@ if USE_RPI:
         for pin in output_pins:
             GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
         _rpi_ready = True
-        print("GPIOs de saída configurados com sucesso.")
+        print("✅ GPIOs de saída configurados com sucesso.")
+    except ImportError as e:
+        print("\n💥 [ERRO CRÍTICO] Biblioteca RPi.GPIO não encontrada!")
+        print("🔧 SOLUÇÃO:")
+        print("   1. Instale a biblioteca RPi.GPIO:")
+        print("      pip install RPi.GPIO")
+        print("   2. Ou se estiver usando ambiente virtual:")
+        print("      source .venv/bin/activate")
+        print("      pip install RPi.GPIO")
+        print("   3. Em alguns sistemas pode ser necessário:")
+        print("      sudo apt update")
+        print("      sudo apt install python3-rpi.gpio")
+        print("      pip install RPi.GPIO")
+        print(f"\n🐛 Erro técnico: {e}")
+        _hardware_init_success = False
     except Exception as e:
-        print(f"[ERRO CRÍTICO] Falha ao inicializar RPi.GPIO: {e}.")
+        print(f"\n💥 [ERRO CRÍTICO] Falha ao inicializar RPi.GPIO: {e}")
+        print("🔧 POSSÍVEIS CAUSAS:")
+        print("   • Não está executando em um Raspberry Pi")
+        print("   • Usuário sem permissões GPIO (tente: sudo)")
+        print("   • Conflito com outro programa usando GPIO")
+        print("   • Sistema operacional não suportado")
         _hardware_init_success = False
 
     if _hardware_init_success:
@@ -212,9 +241,20 @@ if USE_RPI:
                 print(f"\n🚀 TODOS OS SENSORES ESTÃO FUNCIONANDO PERFEITAMENTE!")
                 print("✨ Sistema pronto para operação!")
 
-        except ImportError:
-            print("\n[ERRO CRÍTICO] Biblioteca MAX6675 não encontrada. Instale-a para usar o modo RPi.")
-            print("💡 Execute: pip install MAX6675-RPi")
+        except ImportError as e:
+            print("\n💥 [ERRO CRÍTICO] Biblioteca MAX6675 não encontrada!")
+            print("🔧 SOLUÇÃO:")
+            print("   1. Instale a biblioteca MAX6675:")
+            print("      pip install MAX6675-RPi")
+            print("   2. Ou tente uma alternativa:")
+            print("      pip install max6675")
+            print("   3. Se estiver usando ambiente virtual:")
+            print("      source .venv/bin/activate")
+            print("      pip install MAX6675-RPi")
+            print("   4. Instalar dependências do sistema:")
+            print("      sudo apt update")
+            print("      sudo apt install python3-dev python3-pip")
+            print(f"\n🐛 Erro técnico: {e}")
             _hardware_init_success = False
         except Exception as e:
             print(f"\n[ERRO CRÍTICO] Ocorreu um erro inesperado durante a validação dos sensores: {e}")

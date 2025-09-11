@@ -9,17 +9,46 @@ Projeto em Python para simular e/ou ler dados (Raspberry Pi) e sobrepor valores 
 
 ### Dependências
 
+#### Instalação Básica (Modo Simulação)
 ```bash
-pip install opencv-python
+pip install opencv-python numpy
 ```
 
-Se você usa virtualenv:
-
+#### Instalação Completa (Raspberry Pi)
 ```bash
-python -m venv .venv
-source .venv/bin/activate     # macOS/Linux
-# .venv\Scripts\activate      # Windows
-pip install opencv-python
+# Instalar dependências do sistema
+sudo apt update
+sudo apt install python3-dev python3-pip python3-venv
+
+# Criar e ativar ambiente virtual (recomendado)
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Instalar todas as dependências
+pip install -r requirements.txt
+
+# Ou instalar manualmente:
+pip install opencv-python numpy RPi.GPIO MAX6675-RPi
+```
+
+#### Resolução de Problemas Comuns
+
+**Se `MAX6675-RPi` não funcionar, tente:**
+```bash
+pip install max6675
+```
+
+**Se houver erro de permissão GPIO:**
+```bash
+sudo usermod -a -G gpio $USER
+# Depois faça logout/login ou reinicie
+```
+
+**Instalação sem ambiente virtual:**
+```bash
+pip install opencv-python numpy
+# Para Raspberry Pi adicionar:
+pip install RPi.GPIO MAX6675-RPi
 ```
 
 ## 2) Arquivo principal
@@ -183,11 +212,70 @@ O sistema detecta e relata:
 - **Problemas de alimentação** - Falhas na comunicação SPI
 - **Configuração incorreta** - Pinos invertidos ou conflitantes
 
-## 6) Controles
+## 6) Troubleshooting Raspberry Pi
+
+### 🔧 Problemas Comuns e Soluções
+
+#### Erro: "No module named 'RPi'"
+```bash
+# Solução 1: Instalar RPi.GPIO
+pip install RPi.GPIO
+
+# Solução 2: Se estiver em ambiente virtual
+source .venv/bin/activate
+pip install RPi.GPIO
+
+# Solução 3: Instalar via apt (sistema)
+sudo apt install python3-rpi.gpio
+```
+
+#### Erro: "No module named 'MAX6675'"
+```bash
+# Solução 1: Biblioteca principal
+pip install MAX6675-RPi
+
+# Solução 2: Biblioteca alternativa
+pip install max6675
+
+# Solução 3: Instalar dependências do sistema primeiro
+sudo apt install python3-dev python3-pip
+pip install MAX6675-RPi
+```
+
+#### Erro: "Permission denied" nos GPIOs
+```bash
+# Adicionar usuário ao grupo gpio
+sudo usermod -a -G gpio $USER
+
+# Ou executar com sudo (não recomendado)
+sudo python3 dashboard.py --img assets/base.jpeg --use-rpi
+```
+
+#### Sensores não respondem
+1. **Verificar conexões físicas:**
+   - VCC → 3.3V ou 5V
+   - GND → Ground
+   - SCK, CS, SO → Pinos GPIO corretos
+
+2. **Verificar pinos no código:**
+   ```bash
+   # Ver ajuda com todos os pinos
+   python3 dashboard.py --help
+   
+   # Testar com pinos diferentes
+   python3 dashboard.py --img assets/base.jpeg --use-rpi \
+     --thermo-forno 11 9 10
+   ```
+
+3. **Verificar termopar:**
+   - Termopar tipo K conectado nos pinos T+ e T-
+   - Polaridade correta
+
+## 7) Controles
 
 - **ESC** ou **Ctrl+C**: fecha o programa.
 
-## 7) Posicionamento dos valores na imagem
+## 8) Posicionamento dos valores na imagem
 
 As posições dos 8 campos são proporcionais à imagem (0.0–1.0) e podem ser ajustadas no dicionário `POSITIONS_NORM` dentro do arquivo `dashboard.py`.
 

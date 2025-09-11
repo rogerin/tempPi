@@ -1,0 +1,15 @@
+# Dependências básicas (todas as plataformas)
+opencv-python>=4.5.0
+numpy>=1.20.0
+
+# Dependências específicas do Raspberry Pi
+# Instalar apenas quando executar em modo --use-rpi
+RPi.GPIO>=0.7.0
+MAX6675-RPi>=1.0.0
+
+# Dependências alternativas para sensores MAX6675
+# max6675>=1.0.0  # alternativa se MAX6675-RPi não funcionar
+
+# Dependências de desenvolvimento (opcionais)
+# matplotlib>=3.5.0  # para gráficos avançados (futuro)
+# scipy>=1.7.0       # para análises estatísticas (futuro)

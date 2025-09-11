@@ -6,30 +6,56 @@ import cv2, numpy as np, random, argparse, time, math, warnings, signal
 from datetime import datetime
 
 # ============= 1) ARGUMENTOS DE LINHA DE COMANDO =============
-ap = argparse.ArgumentParser()
+ap = argparse.ArgumentParser(description="Dashboard de controle para sistema de destilação")
 ap.add_argument("--img", required=True, help="Caminho da imagem de fundo.")
 ap.add_argument("--scale", type=float, default=1.0, help="Escala da janela (ex.: 1.0).")
 ap.add_argument("--use-rpi", action="store_true", help="Ativar modo Raspberry Pi (GPIO/MAX6675).")
+
+# Argumentos para sensores de temperatura (3 pinos cada: SCK, CS, SO)
+ap.add_argument("--thermo-torre1", nargs=3, type=int, default=[25, 24, 18], 
+                metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Torre Nível 1 (padrão: 25 24 18)")
+ap.add_argument("--thermo-torre2", nargs=3, type=int, default=[7, 8, 23], 
+                metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Torre Nível 2 (padrão: 7 8 23)")
+ap.add_argument("--thermo-torre3", nargs=3, type=int, default=[21, 20, 16], 
+                metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Torre Nível 3 (padrão: 21 20 16)")
+ap.add_argument("--thermo-tanque", nargs=3, type=int, default=[4, 3, 2], 
+                metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Tanque (padrão: 4 3 2)")
+ap.add_argument("--thermo-gases", nargs=3, type=int, default=[22, 27, 17], 
+                metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Saída Gases (padrão: 22 27 17)")
+ap.add_argument("--thermo-forno", nargs=3, type=int, default=[11, 9, 10], 
+                metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Forno (padrão: 11 9 10)")
+
+# Argumentos para sensores de pressão
+ap.add_argument("--pressao1-pin", type=int, default=2, help="Pino GPIO para Sensor Transdutor de Pressão 1 (padrão: 2)")
+ap.add_argument("--pressao2-pin", type=int, default=3, help="Pino GPIO para Sensor Transdutor de Pressão 2 (padrão: 3)")
+
+# Argumentos para controles/atuadores
+ap.add_argument("--ventilador-pin", type=int, default=14, help="Pino GPIO para controle do Ventilador (padrão: 14)")
+ap.add_argument("--resistencia-pin", type=int, default=26, help="Pino GPIO para controle da Resistência (padrão: 26)")
+ap.add_argument("--motor-rosca-pin", type=int, default=12, help="Pino GPIO para Motor Rosca Alimentação (padrão: 12)")
+ap.add_argument("--tambor-dir-pin", type=int, default=13, help="Pino GPIO para DIR+ Driver Motor Tambor (padrão: 13)")
+ap.add_argument("--tambor-pul-pin", type=int, default=19, help="Pino GPIO para PUL+ Driver Motor Tambor (padrão: 19)")
+
 args = ap.parse_args()
 
 USE_RPI = args.use_rpi
 
-# ============= 2) PINAGENS (BCM) =============
-THERMO_TORRE_1 = (25, 24, 18)
-THERMO_TORRE_2 = (7,  8,  23)
-THERMO_TORRE_3 = (21, 20, 16)
-THERMO_TANQUE  = (4,  3,  2)   # atenção: 2/3 = SDA/SCL (I2C)
-THERMO_GASES   = (22, 27, 17)
-THERMO_FORNO   = (11, 9,  10)
+# ============= 2) PINAGENS (BCM) - Configuráveis via argumentos =============
+THERMO_TORRE_1 = tuple(args.thermo_torre1)
+THERMO_TORRE_2 = tuple(args.thermo_torre2)
+THERMO_TORRE_3 = tuple(args.thermo_torre3)
+THERMO_TANQUE  = tuple(args.thermo_tanque)   # atenção: alguns pinos podem ser SDA/SCL (I2C)
+THERMO_GASES   = tuple(args.thermo_gases)
+THERMO_FORNO   = tuple(args.thermo_forno)
 
-PRESSAO_1_PIN = 2
-PRESSAO_2_PIN = 3
+PRESSAO_1_PIN = args.pressao1_pin
+PRESSAO_2_PIN = args.pressao2_pin
 
-PIN_VENTILADOR = 14
-PIN_RESISTENCIA = 26
-PIN_MOTOR_ROSCA = 12
-PIN_TAMBOR_DIR  = 13
-PIN_TAMBOR_PUL  = 19
+PIN_VENTILADOR = args.ventilador_pin
+PIN_RESISTENCIA = args.resistencia_pin
+PIN_MOTOR_ROSCA = args.motor_rosca_pin
+PIN_TAMBOR_DIR  = args.tambor_dir_pin
+PIN_TAMBOR_PUL  = args.tambor_pul_pin
 
 # ============= 3) UI / CAMPOS =============
 FIELD_NAMES = [
@@ -100,25 +126,95 @@ if USE_RPI:
                 "Temp Forno":    THERMO_FORNO,
             }
 
-            for name, pins in thermo_configs.items():
-                try:
-                    sensor = MAX6675.MAX6675(*pins)
-                    sensor.readTempC() # Leitura de validação
+            print("\n🔍 Iniciando teste detalhado dos sensores de temperatura...")
+            print("⏱️  Cada sensor será testado 3 vezes para garantir funcionamento correto.\n")
+            
+            def test_sensor_with_retries(name, pins, max_attempts=3):
+                """Testa um sensor específico com múltiplas tentativas"""
+                print(f"📡 Testando sensor '{name}' (Pinos SCK:{pins[0]}, CS:{pins[1]}, SO:{pins[2]})...")
+                
+                for attempt in range(1, max_attempts + 1):
+                    try:
+                        # Criar instância do sensor
+                        sensor = MAX6675.MAX6675(*pins)
+                        
+                        # Pequena pausa para estabilização
+                        time.sleep(0.5)
+                        
+                        # Tentar ler temperatura
+                        temp = sensor.readTempC()
+                        
+                        # Validar se a leitura é válida
+                        if temp is None or math.isnan(temp) or temp < -50 or temp > 1000:
+                            raise ValueError(f"Leitura inválida: {temp}°C")
+                        
+                        # Teste bem-sucedido
+                        print(f"  ✅ Tentativa {attempt}/3: SUCESSO - Temperatura: {temp:.1f}°C")
+                        return sensor, temp
+                        
+                    except Exception as e:
+                        print(f"  ❌ Tentativa {attempt}/3: FALHA - {str(e)}")
+                        if attempt < max_attempts:
+                            print(f"     🔄 Aguardando 1s antes da próxima tentativa...")
+                            time.sleep(1)
+                        else:
+                            print(f"     💥 Sensor '{name}' falhou em todas as tentativas!")
+                
+                return None, None
+
+            # Testar cada sensor individualmente
+            sensor_results = {}
+            total_sensors = len(thermo_configs)
+            working_sensors = 0
+            
+            for i, (name, pins) in enumerate(thermo_configs.items(), 1):
+                print(f"\n[{i}/{total_sensors}] " + "="*50)
+                sensor, temp = test_sensor_with_retries(name, pins)
+                
+                if sensor is not None:
                     thermo_sensors[name] = sensor
-                    print(f"  - Sensor '{name}'... OK")
-                except Exception as e:
+                    sensor_results[name] = {"status": "OK", "temp": temp, "pins": pins}
+                    working_sensors += 1
+                    print(f"✨ Sensor '{name}' APROVADO!")
+                else:
+                    sensor_results[name] = {"status": "FALHA", "temp": None, "pins": pins}
                     failed_sensors.append(f"{name} (Pinos: {pins})")
+                    print(f"💀 Sensor '{name}' REPROVADO!")
+            
+            # Relatório final
+            print("\n" + "="*70)
+            print("📊 RELATÓRIO FINAL DE VALIDAÇÃO DOS SENSORES")
+            print("="*70)
+            print(f"✅ Sensores funcionando: {working_sensors}/{total_sensors}")
+            print(f"❌ Sensores com falha: {len(failed_sensors)}/{total_sensors}")
+            
+            if working_sensors > 0:
+                print(f"\n🎉 SENSORES APROVADOS:")
+                for name, result in sensor_results.items():
+                    if result["status"] == "OK":
+                        print(f"  ✅ {name}: {result['temp']:.1f}°C (Pinos: {result['pins']})")
             
             if failed_sensors:
-                print("\n[ERRO CRÍTICO] Falha ao inicializar os seguintes sensores:")
-                for sensor_info in failed_sensors:
-                    print(f"  - {sensor_info}")
+                print(f"\n💥 SENSORES REPROVADOS:")
+                for name, result in sensor_results.items():
+                    if result["status"] == "FALHA":
+                        print(f"  ❌ {name}: Sem resposta (Pinos: {result['pins']})")
+                
+                print(f"\n⚠️  ATENÇÃO: {len(failed_sensors)} sensor(es) não está(ão) funcionando!")
+                print("🔧 Verifique:")
+                print("   • Conexões físicas dos pinos")
+                print("   • Alimentação dos sensores (3.3V ou 5V)")
+                print("   • Soldas dos conectores")
+                print("   • Termopares conectados corretamente")
+                
                 _hardware_init_success = False
             else:
-                print("Todos os sensores de temperatura foram validados com sucesso.")
+                print(f"\n🚀 TODOS OS SENSORES ESTÃO FUNCIONANDO PERFEITAMENTE!")
+                print("✨ Sistema pronto para operação!")
 
         except ImportError:
             print("\n[ERRO CRÍTICO] Biblioteca MAX6675 não encontrada. Instale-a para usar o modo RPi.")
+            print("💡 Execute: pip install MAX6675-RPi")
             _hardware_init_success = False
         except Exception as e:
             print(f"\n[ERRO CRÍTICO] Ocorreu um erro inesperado durante a validação dos sensores: {e}")

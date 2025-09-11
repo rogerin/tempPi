@@ -34,20 +34,83 @@ Coloque a sua imagem de fundo (jpg/png) na mesma pasta do projeto.
 
 ### Modo Simulação (padrão)
 ```bash
-python dashboard.py --img assets/base.jpeg
+python3 dashboard.py --img assets/base.jpeg
 ```
 
 ### Modo Raspberry Pi
 ```bash
-python dashboard.py --img assets/base.jpeg --use-rpi
+python3 dashboard.py --img assets/base.jpeg --use-rpi
 ```
 
-**Parâmetros:**
+### Modo Raspberry Pi com pinos customizados
+```bash
+python3 dashboard.py --img assets/base.jpeg --use-rpi \
+  --thermo-torre1 25 24 18 \
+  --thermo-torre2 7 8 23 \
+  --thermo-torre3 21 20 16 \
+  --thermo-tanque 4 3 2 \
+  --thermo-gases 22 27 17 \
+  --thermo-forno 11 9 10 \
+  --pressao1-pin 2 \
+  --pressao2-pin 3 \
+  --ventilador-pin 14 \
+  --resistencia-pin 26 \
+  --motor-rosca-pin 12 \
+  --tambor-dir-pin 13 \
+  --tambor-pul-pin 19 \
+  --scale 1.0
+```
+
+**Parâmetros básicos:**
 - `--img`: caminho da imagem de fundo (obrigatório).
 - `--scale`: escala da janela principal (opcional). Ex.: 0.8, 1.0, 1.2.
 - `--use-rpi`: ativa o modo de leitura dos sensores no Raspberry Pi (opcional).
 
+**Parâmetros de configuração GPIO:**
+
+*Sensores de temperatura MAX6675 (3 pinos cada na ordem: SCK, CS, SO):*
+- `--thermo-torre1`: Pinos SCK CS SO para sensor Torre Nível 1 (padrão: 25 24 18)
+- `--thermo-torre2`: Pinos SCK CS SO para sensor Torre Nível 2 (padrão: 7 8 23)  
+- `--thermo-torre3`: Pinos SCK CS SO para sensor Torre Nível 3 (padrão: 21 20 16)
+- `--thermo-tanque`: Pinos SCK CS SO para sensor Tanque (padrão: 4 3 2)
+- `--thermo-gases`: Pinos SCK CS SO para sensor Saída Gases (padrão: 22 27 17)
+- `--thermo-forno`: Pinos SCK CS SO para sensor Forno (padrão: 11 9 10)
+
+  **Nota:** SCK = Serial Clock, CS = Chip Select, SO = Serial Output
+
+*Sensores de pressão:*
+- `--pressao1-pin`: Pino para Transdutor de Pressão 1 (padrão: 2)
+- `--pressao2-pin`: Pino para Transdutor de Pressão 2 (padrão: 3)
+
+*Controles/Atuadores:*
+- `--ventilador-pin`: Pino para controle do Ventilador (padrão: 14)
+- `--resistencia-pin`: Pino para controle da Resistência (padrão: 26)
+- `--motor-rosca-pin`: Pino para Motor Rosca Alimentação (padrão: 12)
+- `--tambor-dir-pin`: Pino para DIR+ Driver Motor Tambor (padrão: 13)
+- `--tambor-pul-pin`: Pino para PUL+ Driver Motor Tambor (padrão: 19)
+
 Na janela **Painel**, você verá os valores sobrepostos nos campos da sua imagem.
+
+### Exemplos de uso avançado
+
+**Ver ajuda completa:**
+```bash
+python3 dashboard.py --help
+```
+
+**Customizar apenas alguns pinos específicos:**
+```bash
+python3 dashboard.py --img assets/base.jpeg --use-rpi \
+  --thermo-forno 5 6 7 \
+  --thermo-torre1 8 9 10 \
+  --ventilador-pin 15 \
+  --resistencia-pin 18
+```
+
+**Executar com escala diferente:**
+```bash
+python3 dashboard.py --img assets/base.jpeg --scale 0.8 --use-rpi
+```
 
 ## 4) Modo Simulação
 
@@ -57,11 +120,74 @@ Por padrão, ou quando a flag `--use-rpi` não está presente, o script é execu
 - As atualizações ocorrem a cada 2 segundos com pequenas variações para parecerem mais realistas.
 - Não há controles de teclado para ajustar os valores; a simulação é automática.
 
-## 5) Controles
+## 5) Sistema de Validação de Sensores
+
+### 🔍 Teste Automático de Sensores (Modo Raspberry Pi)
+
+Quando executado com `--use-rpi`, o sistema agora inclui uma **validação robusta** de todos os sensores antes de iniciar:
+
+**Características da validação:**
+- ✅ **3 tentativas por sensor** - Cada sensor é testado até 3 vezes para garantir funcionamento
+- 📊 **Relatório detalhado** - Mostra status individual de cada sensor
+- ⏱️ **Timeout inteligente** - Pausa entre tentativas para estabilização
+- 🎯 **Validação de dados** - Verifica se as leituras estão dentro de faixas válidas
+- 🚫 **Bloqueio de execução** - O programa só inicia se todos os sensores estiverem funcionando
+
+**Exemplo de saída da validação:**
+```
+🔍 Iniciando teste detalhado dos sensores de temperatura...
+⏱️  Cada sensor será testado 3 vezes para garantir funcionamento correto.
+
+[1/6] ==================================================
+📡 Testando sensor 'Torre Nível 1' (Pinos SCK:25, CS:24, SO:18)...
+  ✅ Tentativa 1/3: SUCESSO - Temperatura: 23.5°C
+✨ Sensor 'Torre Nível 1' APROVADO!
+
+[2/6] ==================================================
+📡 Testando sensor 'Torre Nível 2' (Pinos SCK:7, CS:8, SO:23)...
+  ❌ Tentativa 1/3: FALHA - No response from sensor
+     🔄 Aguardando 1s antes da próxima tentativa...
+  ❌ Tentativa 2/3: FALHA - Invalid reading: -999.0°C
+     🔄 Aguardando 1s antes da próxima tentativa...
+  ❌ Tentativa 3/3: FALHA - Connection timeout
+     💥 Sensor 'Torre Nível 2' falhou em todas as tentativas!
+💀 Sensor 'Torre Nível 2' REPROVADO!
+
+======================================================================
+📊 RELATÓRIO FINAL DE VALIDAÇÃO DOS SENSORES
+======================================================================
+✅ Sensores funcionando: 5/6
+❌ Sensores com falha: 1/6
+
+🎉 SENSORES APROVADOS:
+  ✅ Torre Nível 1: 23.5°C (Pinos: (25, 24, 18))
+  ✅ Temp Tanque: 25.2°C (Pinos: (4, 3, 2))
+  ...
+
+💥 SENSORES REPROVADOS:
+  ❌ Torre Nível 2: Sem resposta (Pinos: (7, 8, 23))
+
+⚠️  ATENÇÃO: 1 sensor(es) não está(ão) funcionando!
+🔧 Verifique:
+   • Conexões físicas dos pinos
+   • Alimentação dos sensores (3.3V ou 5V)
+   • Soldas dos conectores
+   • Termopares conectados corretamente
+```
+
+### 🛡️ Proteção Contra Problemas Comuns
+
+O sistema detecta e relata:
+- **Conexões soltas** - Sensores que não respondem
+- **Leituras inválidas** - Temperaturas fora da faixa (-50°C a 1000°C)
+- **Problemas de alimentação** - Falhas na comunicação SPI
+- **Configuração incorreta** - Pinos invertidos ou conflitantes
+
+## 6) Controles
 
 - **ESC** ou **Ctrl+C**: fecha o programa.
 
-## 6) Posicionamento dos valores na imagem
+## 7) Posicionamento dos valores na imagem
 
 As posições dos 8 campos são proporcionais à imagem (0.0–1.0) e podem ser ajustadas no dicionário `POSITIONS_NORM` dentro do arquivo `dashboard.py`.
 

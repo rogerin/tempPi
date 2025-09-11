@@ -15,6 +15,15 @@ pip install opencv-python numpy
 ```
 
 #### Instalação Completa (Raspberry Pi)
+
+**🚀 Instalação Automática (Recomendado):**
+```bash
+# Executar script de instalação automática
+chmod +x install_rpi.sh
+./install_rpi.sh
+```
+
+**📝 Instalação Manual:**
 ```bash
 # Instalar dependências do sistema
 sudo apt update
@@ -24,11 +33,15 @@ sudo apt install python3-dev python3-pip python3-venv
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Instalar todas as dependências
-pip install -r requirements.txt
+# Instalar dependências básicas
+pip install opencv-python numpy RPi.GPIO
 
-# Ou instalar manualmente:
-pip install opencv-python numpy RPi.GPIO MAX6675-RPi
+# Tentar instalar bibliotecas MAX6675 (uma das opções):
+pip install MAX6675-RPi
+# OU se a primeira falhar:
+pip install max6675
+# OU se ainda falhar:
+pip install MAX6675
 ```
 
 #### Resolução de Problemas Comuns

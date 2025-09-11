@@ -5,10 +5,22 @@ numpy>=1.20.0
 # Dependências específicas do Raspberry Pi
 # Instalar apenas quando executar em modo --use-rpi
 RPi.GPIO>=0.7.0
+
+# Bibliotecas MAX6675 (instalar pelo menos uma)
+# Opção 1 (recomendada):
 MAX6675-RPi>=1.0.0
 
-# Dependências alternativas para sensores MAX6675
-# max6675>=1.0.0  # alternativa se MAX6675-RPi não funcionar
+# Opção 2 (alternativa - descomente se a primeira não funcionar):
+# max6675>=1.0.0
+
+# Opção 3 (genérica - descomente se as outras não funcionarem):
+# MAX6675>=1.0.0
+
+# INSTRUÇÕES DE INSTALAÇÃO:
+# 1. Tente primeiro: pip install MAX6675-RPi
+# 2. Se não funcionar: pip install max6675
+# 3. Se ainda não funcionar: pip install MAX6675
+# 4. O programa tentará todas as bibliotecas automaticamente
 
 # Dependências de desenvolvimento (opcionais)
 # matplotlib>=3.5.0  # para gráficos avançados (futuro)

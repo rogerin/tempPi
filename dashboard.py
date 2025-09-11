@@ -144,8 +144,57 @@ if USE_RPI:
         _hardware_init_success = False
 
     if _hardware_init_success:
-        try:
-            import MAX6675.MAX6675 as MAX6675
+        # Tentar importar diferentes bibliotecas MAX6675 disponíveis
+        MAX6675_lib = None
+        library_used = None
+        
+        print("🔍 Procurando bibliotecas MAX6675 disponíveis...")
+        
+        # Lista de bibliotecas para tentar (em ordem de preferência)
+        max6675_libraries = [
+            ("MAX6675.MAX6675", "MAX6675-RPi", "import MAX6675.MAX6675 as MAX6675_lib"),
+            ("max6675", "max6675", "import max6675 as MAX6675_lib"),
+            ("MAX6675", "MAX6675", "import MAX6675 as MAX6675_lib"),
+        ]
+        
+        for lib_name, pip_name, import_cmd in max6675_libraries:
+            try:
+                print(f"  📦 Tentando biblioteca '{lib_name}'...")
+                exec(import_cmd)
+                library_used = lib_name
+                print(f"  ✅ Biblioteca '{lib_name}' encontrada e carregada!")
+                break
+            except ImportError:
+                print(f"  ❌ Biblioteca '{lib_name}' não encontrada")
+                continue
+        
+        if MAX6675_lib is None:
+            print("\n💥 [ERRO] Nenhuma biblioteca MAX6675 encontrada!")
+            print("🔧 SOLUÇÕES DISPONÍVEIS:")
+            print("   1. Instalar MAX6675-RPi (recomendado):")
+            print("      pip install MAX6675-RPi")
+            print("   2. Instalar max6675 (alternativa):")
+            print("      pip install max6675")
+            print("   3. Instalar MAX6675 genérico:")
+            print("      pip install MAX6675")
+            print("   4. Instalar dependências do sistema primeiro:")
+            print("      sudo apt update")
+            print("      sudo apt install python3-dev python3-pip")
+            print("      pip install MAX6675-RPi")
+            print("\n🚀 SOLUÇÃO RÁPIDA - Execute um destes comandos:")
+            print("   pip install MAX6675-RPi")
+            print("   # OU")
+            print("   pip install max6675")
+            
+            # Oferecer opção de continuar com simulação de sensores
+            print(f"\n🤔 ALTERNATIVA: Executar com sensores simulados no Raspberry Pi?")
+            print("   O programa pode funcionar com dados simulados para teste.")
+            print("   Para isso, execute sem --use-rpi ou pressione Ctrl+C e reinstale as bibliotecas.")
+            
+            _hardware_init_success = False
+        else:
+            print(f"\n🎉 Usando biblioteca: {library_used}")
+            
             thermo_configs = {
                 "Torre Nível 1": THERMO_TORRE_1,
                 "Torre Nível 2": THERMO_TORRE_2,
@@ -164,14 +213,26 @@ if USE_RPI:
                 
                 for attempt in range(1, max_attempts + 1):
                     try:
-                        # Criar instância do sensor
-                        sensor = MAX6675.MAX6675(*pins)
+                        # Criar instância do sensor usando a biblioteca carregada
+                        if library_used == "MAX6675.MAX6675":
+                            sensor = MAX6675_lib.MAX6675(*pins)
+                        else:
+                            # Para outras bibliotecas, tentar instanciar diretamente
+                            sensor = MAX6675_lib(*pins)
                         
                         # Pequena pausa para estabilização
                         time.sleep(0.5)
                         
-                        # Tentar ler temperatura
-                        temp = sensor.readTempC()
+                        # Tentar ler temperatura (diferentes métodos dependendo da biblioteca)
+                        if hasattr(sensor, 'readTempC'):
+                            temp = sensor.readTempC()
+                        elif hasattr(sensor, 'read'):
+                            temp = sensor.read()
+                        elif hasattr(sensor, 'readTemperature'):
+                            temp = sensor.readTemperature()
+                        else:
+                            # Tentar método padrão
+                            temp = sensor.readTempC()
                         
                         # Validar se a leitura é válida
                         if temp is None or math.isnan(temp) or temp < -50 or temp > 1000:
@@ -241,24 +302,9 @@ if USE_RPI:
                 print(f"\n🚀 TODOS OS SENSORES ESTÃO FUNCIONANDO PERFEITAMENTE!")
                 print("✨ Sistema pronto para operação!")
 
-        except ImportError as e:
-            print("\n💥 [ERRO CRÍTICO] Biblioteca MAX6675 não encontrada!")
-            print("🔧 SOLUÇÃO:")
-            print("   1. Instale a biblioteca MAX6675:")
-            print("      pip install MAX6675-RPi")
-            print("   2. Ou tente uma alternativa:")
-            print("      pip install max6675")
-            print("   3. Se estiver usando ambiente virtual:")
-            print("      source .venv/bin/activate")
-            print("      pip install MAX6675-RPi")
-            print("   4. Instalar dependências do sistema:")
-            print("      sudo apt update")
-            print("      sudo apt install python3-dev python3-pip")
-            print(f"\n🐛 Erro técnico: {e}")
-            _hardware_init_success = False
-        except Exception as e:
-            print(f"\n[ERRO CRÍTICO] Ocorreu um erro inesperado durante a validação dos sensores: {e}")
-            _hardware_init_success = False
+            # Se chegou até aqui, a biblioteca foi carregada com sucesso
+            # O resto do código de validação já está implementado acima
+            pass
 
 # Fallback para simulação se a flag RPi não estiver ativa
 if not USE_RPI:
@@ -304,7 +350,19 @@ def read_temp(label, base_c, amp):
     # Tenta a leitura do sensor real se ele foi inicializado com sucesso
     if USE_RPI and label in thermo_sensors:
         try:
-            c = float(thermo_sensors[label].readTempC())
+            sensor = thermo_sensors[label]
+            
+            # Tentar diferentes métodos de leitura dependendo da biblioteca
+            if hasattr(sensor, 'readTempC'):
+                c = float(sensor.readTempC())
+            elif hasattr(sensor, 'read'):
+                c = float(sensor.read())
+            elif hasattr(sensor, 'readTemperature'):
+                c = float(sensor.readTemperature())
+            else:
+                # Fallback para método padrão
+                c = float(sensor.readTempC())
+            
             # Adiciona uma verificação para leituras inválidas comuns (ex: 0.0 ou NaN)
             if c > 0 and not math.isnan(c):
                 return round(c, 1)

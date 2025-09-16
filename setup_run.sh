@@ -16,7 +16,7 @@ echo "=== Atualizando pip ==="
 pip install --upgrade pip
 
 echo "=== Instalando dependências ==="
-pip install opencv-python numpy RPi.GPIO
+pip install opencv-python numpy RPi.GPIO flask
 
 echo "=== Rodando dashboard.py ==="
 python3 dashboard.py --img assets/base.jpeg --use-rpi &

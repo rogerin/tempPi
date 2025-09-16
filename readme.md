@@ -183,7 +183,7 @@ Quando executado com `--use-rpi`, o sistema agora inclui uma **validação robus
 
 🔍 Iniciando teste detalhado dos sensores de temperatura...
 ⏱️  Cada sensor será testado 3 vezes para garantir funcionamento correto.
-
+git a
 [1/6] ==================================================
 📡 Testando sensor 'Torre Nível 1' (Pinos SCK:25, CS:24, SO:18)...
   ✅ Tentativa 1/3: SUCESSO - Temperatura: 23.5°C
@@ -306,7 +306,7 @@ python3 dashboard.py --img assets/base.jpeg --use-rpi
 # Terminal 2: Executar servidor web
 python3 sensor_server.py
 
-# Acessar: http://localhost:5000
+# Acessar: http://localhost:8080
 ```
 
 **🎯 Funcionalidades do Dashboard Web:**
@@ -360,7 +360,7 @@ python3 sensor_server.py
 ```
 
 #### **Acesso:**
-- **Dashboard Web**: http://localhost:5000
+- **Dashboard Web**: http://localhost:8080
 - **Para rede local**: Execute com `--host 0.0.0.0`
 
 ## 9) Posicionamento dos valores na imagem

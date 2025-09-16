@@ -5,6 +5,67 @@ const API_BASE = '';
 let currentPage = 1;
 let currentFilters = {};
 
+// Configurações de cores para os gráficos (global)
+const chartColors = {
+    temperature: '#dc3545',
+    pressure: '#007bff',
+    velocity: '#28a745',
+    background: {
+        temperature: 'rgba(220, 53, 69, 0.1)',
+        pressure: 'rgba(0, 123, 255, 0.1)',
+        velocity: 'rgba(40, 167, 69, 0.1)'
+    }
+};
+
+// Configuração padrão dos gráficos (global)
+const defaultChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+        intersect: false,
+        mode: 'index'
+    },
+    plugins: {
+        legend: {
+            position: 'top'
+        },
+        tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            titleColor: 'white',
+            bodyColor: 'white',
+            borderColor: '#dee2e6',
+            borderWidth: 1
+        }
+    },
+    scales: {
+        x: {
+            type: 'time',
+            time: {
+                unit: 'hour',
+                displayFormats: {
+                    hour: 'HH:mm',
+                    day: 'dd/MM',
+                    minute: 'HH:mm'
+                },
+                tooltipFormat: 'dd/MM/yyyy HH:mm'
+            },
+            grid: {
+                color: 'rgba(0,0,0,0.1)'
+            },
+            title: {
+                display: true,
+                text: 'Tempo'
+            }
+        },
+        y: {
+            beginAtZero: true,
+            grid: {
+                color: 'rgba(0,0,0,0.1)'
+            }
+        }
+    }
+};
+
 // Utilitários
 function formatDateTime(dateString) {
     if (!dateString) return '-';
@@ -318,3 +379,26 @@ setInterval(() => {
         loadData(currentPage, currentFilters);
     }
 }, 30000);
+
+// Calcular estatísticas básicas de um array (global)
+function calculateStats(data) {
+    if (!data || data.length === 0) {
+        return { min: 0, max: 0, avg: 0, count: 0 };
+    }
+    
+    const values = data.filter(v => v !== null && v !== undefined);
+    if (values.length === 0) {
+        return { min: 0, max: 0, avg: 0, count: 0 };
+    }
+    
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    
+    return {
+        min: parseFloat(min.toFixed(2)),
+        max: parseFloat(max.toFixed(2)),
+        avg: parseFloat(avg.toFixed(2)),
+        count: values.length
+    };
+}

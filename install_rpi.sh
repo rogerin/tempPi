@@ -21,7 +21,7 @@ echo "📦 Atualizando sistema..."
 sudo apt update
 
 echo "🔧 Instalando dependências do sistema..."
-sudo apt install -y python3-dev python3-pip python3-venv python3-rpi.gpio
+sudo apt install -y python3-dev python3-pip python3-venv python3-rpi.gpio python3-opencv libopencv-dev
 
 echo "🐍 Verificando ambiente virtual..."
 if [ ! -d ".venv" ]; then
@@ -34,7 +34,18 @@ source .venv/bin/activate
 
 echo "📚 Instalando dependências básicas..."
 pip install --upgrade pip
-pip install opencv-python numpy RPi.GPIO flask werkzeug
+
+echo "🎥 Instalando OpenCV..."
+# Tentar instalar opencv-python primeiro
+pip install opencv-python numpy
+if [ $? -ne 0 ]; then
+    echo "   ⚠️  Fallback: Usando OpenCV do sistema..."
+    # Se falhar, usar a versão do sistema
+    pip install numpy
+fi
+
+echo "🔌 Instalando outras dependências..."
+pip install RPi.GPIO flask werkzeug
 
 echo "⚡ Implementação nativa MAX6675 - Não precisa de bibliotecas externas!"
 echo "   O sistema agora usa protocolo SPI nativo com RPi.GPIO"
@@ -50,7 +61,7 @@ echo "      python dashboard.py --img assets/base.jpeg --use-rpi"
 echo "   3. Em outro terminal, executar o servidor web:"
 echo "      python sensor_server.py"
 echo "   4. Acessar o dashboard web:"
-echo "      http://localhost:5000"
+echo "      http://localhost:8080"
 echo ""
 echo "🌐 NOVA FUNCIONALIDADE: Servidor Web com Gráficos!"
 echo "   • Visualização de dados em tempo real"

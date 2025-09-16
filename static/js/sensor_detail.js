@@ -4,13 +4,25 @@ let temperatureChart = null;
 let pressureChart = null;
 let velocityChart = null;
 let autoRefreshInterval = null;
+let lastDataCount = 0; // Para evitar atualizações desnecessárias
 
 // Carregar dados do sensor
-async function loadSensorData(hours = 24) {
+async function loadSensorData(hours = 24, forceUpdate = false) {
     try {
-        const data = await fetchAPI(`chart/${encodeURIComponent(sensorName)}?hours=${hours}`);
+        // Limitar dados para evitar sobrecarga
+        const maxDataPoints = 500;
+        const data = await fetchAPI(`chart/${encodeURIComponent(sensorName)}?hours=${hours}&limit=${maxDataPoints}`);
         
-        // Atualizar gráficos
+        // Verificar se há novos dados (evitar atualização desnecessária)
+        if (!forceUpdate && data.length === lastDataCount) {
+            console.log('Nenhum dado novo, pulando atualização dos gráficos');
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pt-BR');
+            return;
+        }
+        
+        lastDataCount = data.length;
+        
+        // Atualizar gráficos apenas se necessário
         updateTemperatureChart(data);
         updatePressureChart(data);
         updateVelocityChart(data);
@@ -38,52 +50,66 @@ function updateTemperatureChart(data) {
     const temperatureData = data
         .filter(d => d.temperature !== null)
         .map(d => ({
-            x: d.timestamp,
+            x: new Date(d.timestamp).getTime(),
             y: d.temperature
-        }));
+        }))
+        .filter(d => !isNaN(d.x));
     
-    if (temperatureChart) {
-        temperatureChart.destroy();
-    }
-    
-    temperatureChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            datasets: [{
-                label: 'Temperatura (°C)',
-                data: temperatureData,
-                borderColor: chartColors.temperature,
-                backgroundColor: chartColors.background.temperature,
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            ...defaultChartOptions,
-            plugins: {
-                ...defaultChartOptions.plugins,
-                title: {
-                    display: false
-                }
+    // Se o gráfico já existe, apenas atualizar os dados
+    if (temperatureChart && temperatureChart.data) {
+        temperatureChart.data.datasets[0].data = temperatureData;
+        temperatureChart.update('none'); // Atualização sem animação para melhor performance
+    } else {
+        // Criar novo gráfico apenas se não existir
+        if (temperatureChart) {
+            temperatureChart.destroy();
+        }
+        
+        temperatureChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'Temperatura (°C)',
+                    data: temperatureData,
+                    borderColor: chartColors.temperature,
+                    backgroundColor: chartColors.background.temperature,
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
             },
-            scales: {
-                ...defaultChartOptions.scales,
-                y: {
-                    ...defaultChartOptions.scales.y,
+            options: {
+                ...defaultChartOptions,
+                animation: {
+                    duration: 0 // Desabilitar animação para melhor performance
+                },
+                plugins: {
+                    ...defaultChartOptions.plugins,
                     title: {
-                        display: true,
-                        text: 'Temperatura (°C)'
+                        display: false
+                    }
+                },
+                scales: {
+                    ...defaultChartOptions.scales,
+                    y: {
+                        ...defaultChartOptions.scales.y,
+                        title: {
+                            display: true,
+                            text: 'Temperatura (°C)'
+                        }
                     }
                 }
             }
-        }
-    });
+        });
+    }
     
     // Atualizar valor atual
     if (temperatureData.length > 0) {
         const current = temperatureData[temperatureData.length - 1].y;
-        document.getElementById('temp-current').textContent = formatValue(current);
+        const tempCurrentEl = document.getElementById('temp-current');
+        if (tempCurrentEl) {
+            tempCurrentEl.textContent = formatValue(current);
+        }
     }
 }
 
@@ -95,52 +121,65 @@ function updatePressureChart(data) {
     const pressureData = data
         .filter(d => d.pressure !== null)
         .map(d => ({
-            x: d.timestamp,
+            x: new Date(d.timestamp).getTime(),
             y: d.pressure
-        }));
+        }))
+        .filter(d => !isNaN(d.x));
     
-    if (pressureChart) {
-        pressureChart.destroy();
-    }
-    
-    pressureChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            datasets: [{
-                label: 'Pressão (bar)',
-                data: pressureData,
-                borderColor: chartColors.pressure,
-                backgroundColor: chartColors.background.pressure,
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            ...defaultChartOptions,
-            plugins: {
-                ...defaultChartOptions.plugins,
-                title: {
-                    display: false
-                }
+    // Se o gráfico já existe, apenas atualizar os dados
+    if (pressureChart && pressureChart.data) {
+        pressureChart.data.datasets[0].data = pressureData;
+        pressureChart.update('none');
+    } else {
+        if (pressureChart) {
+            pressureChart.destroy();
+        }
+        
+        pressureChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'Pressão (bar)',
+                    data: pressureData,
+                    borderColor: chartColors.pressure,
+                    backgroundColor: chartColors.background.pressure,
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
             },
-            scales: {
-                ...defaultChartOptions.scales,
-                y: {
-                    ...defaultChartOptions.scales.y,
+            options: {
+                ...defaultChartOptions,
+                animation: {
+                    duration: 0
+                },
+                plugins: {
+                    ...defaultChartOptions.plugins,
                     title: {
-                        display: true,
-                        text: 'Pressão (bar)'
+                        display: false
+                    }
+                },
+                scales: {
+                    ...defaultChartOptions.scales,
+                    y: {
+                        ...defaultChartOptions.scales.y,
+                        title: {
+                            display: true,
+                            text: 'Pressão (bar)'
+                        }
                     }
                 }
             }
-        }
-    });
+        });
+    }
     
     // Atualizar valor atual
     if (pressureData.length > 0) {
         const current = pressureData[pressureData.length - 1].y;
-        document.getElementById('pressure-current').textContent = formatValue(current);
+        const pressureCurrentEl = document.getElementById('pressure-current');
+        if (pressureCurrentEl) {
+            pressureCurrentEl.textContent = formatValue(current);
+        }
     }
 }
 
@@ -152,52 +191,65 @@ function updateVelocityChart(data) {
     const velocityData = data
         .filter(d => d.velocity !== null)
         .map(d => ({
-            x: d.timestamp,
+            x: new Date(d.timestamp).getTime(),
             y: d.velocity
-        }));
+        }))
+        .filter(d => !isNaN(d.x));
     
-    if (velocityChart) {
-        velocityChart.destroy();
-    }
-    
-    velocityChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            datasets: [{
-                label: 'Velocidade (rpm)',
-                data: velocityData,
-                borderColor: chartColors.velocity,
-                backgroundColor: chartColors.background.velocity,
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            ...defaultChartOptions,
-            plugins: {
-                ...defaultChartOptions.plugins,
-                title: {
-                    display: false
-                }
+    // Se o gráfico já existe, apenas atualizar os dados
+    if (velocityChart && velocityChart.data) {
+        velocityChart.data.datasets[0].data = velocityData;
+        velocityChart.update('none');
+    } else {
+        if (velocityChart) {
+            velocityChart.destroy();
+        }
+        
+        velocityChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'Velocidade (rpm)',
+                    data: velocityData,
+                    borderColor: chartColors.velocity,
+                    backgroundColor: chartColors.background.velocity,
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
             },
-            scales: {
-                ...defaultChartOptions.scales,
-                y: {
-                    ...defaultChartOptions.scales.y,
+            options: {
+                ...defaultChartOptions,
+                animation: {
+                    duration: 0
+                },
+                plugins: {
+                    ...defaultChartOptions.plugins,
                     title: {
-                        display: true,
-                        text: 'Velocidade (rpm)'
+                        display: false
+                    }
+                },
+                scales: {
+                    ...defaultChartOptions.scales,
+                    y: {
+                        ...defaultChartOptions.scales.y,
+                        title: {
+                            display: true,
+                            text: 'Velocidade (rpm)'
+                        }
                     }
                 }
             }
-        }
-    });
+        });
+    }
     
     // Atualizar valor atual
     if (velocityData.length > 0) {
         const current = velocityData[velocityData.length - 1].y;
-        document.getElementById('velocity-current').textContent = formatValue(current, '', 0);
+        const velocityCurrentEl = document.getElementById('velocity-current');
+        if (velocityCurrentEl) {
+            velocityCurrentEl.textContent = formatValue(current, '', 0);
+        }
     }
 }
 
@@ -283,40 +335,58 @@ function toggleAutoRefresh() {
         const hours = parseInt(document.getElementById('time-range').value);
         autoRefreshInterval = setInterval(() => {
             loadSensorData(hours);
-        }, 10000); // Atualizar a cada 10 segundos
+        }, 30000); // Atualizar a cada 30 segundos
         
         btn.dataset.active = 'true';
         btn.innerHTML = '<i class="fas fa-pause"></i> Auto-refresh';
         btn.classList.add('auto-refresh-active');
-        showToast('Auto-refresh ativado (10s)', 'success');
+        showToast('Auto-refresh ativado (30s)', 'success');
     }
 }
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', function() {
     // Carregar dados iniciais
-    loadSensorData();
+    loadSensorData(24, true); // Forçar carregamento inicial
     
     // Atualizar gráfico
     document.getElementById('update-chart').addEventListener('click', function() {
         const hours = parseInt(document.getElementById('time-range').value);
-        loadSensorData(hours);
+        loadSensorData(hours, true); // Forçar atualização manual
         showToast('Gráficos atualizados!', 'success');
     });
     
     // Mudança de período
     document.getElementById('time-range').addEventListener('change', function() {
         const hours = parseInt(this.value);
-        loadSensorData(hours);
+        lastDataCount = 0; // Reset contador para forçar recriação dos gráficos
+        loadSensorData(hours, true); // Forçar atualização ao mudar período
     });
     
     // Auto-refresh
     document.getElementById('auto-refresh').addEventListener('click', toggleAutoRefresh);
 });
 
-// Limpar intervalos quando sair da página
+// Função para limpar todos os gráficos
+function destroyAllCharts() {
+    if (temperatureChart) {
+        temperatureChart.destroy();
+        temperatureChart = null;
+    }
+    if (pressureChart) {
+        pressureChart.destroy();
+        pressureChart = null;
+    }
+    if (velocityChart) {
+        velocityChart.destroy();
+        velocityChart = null;
+    }
+}
+
+// Limpar intervalos e gráficos quando sair da página
 window.addEventListener('beforeunload', function() {
     if (autoRefreshInterval) {
         clearInterval(autoRefreshInterval);
     }
+    destroyAllCharts();
 });

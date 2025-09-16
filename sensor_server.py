@@ -230,8 +230,16 @@ if __name__ == '__main__':
     
     print("🚀 Iniciando servidor de visualização de dados...")
     print(f"📊 Banco de dados: {DATABASE_PATH}")
-    print("🌐 Acesse: http://localhost:5000")
+    print("🌐 Acesse: http://localhost:8080")
     print("📱 Para acessar de outros dispositivos use: --host 0.0.0.0")
+    print("💡 Se a porta 8080 estiver ocupada, o Flask tentará a próxima disponível")
     
-    # Iniciar servidor
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    # Iniciar servidor (tentar porta 8080, se ocupada, o Flask tentará outras)
+    try:
+        app.run(host='127.0.0.1', port=3333, debug=True)
+    except OSError as e:
+        if "Address already in use" in str(e):
+            print("⚠️  Porta 8080 ocupada, tentando porta 8081...")
+            app.run(host='127.0.0.1', port=8081, debug=True)
+        else:
+            raise

@@ -1,60 +1,7 @@
 // TempPi Dashboard - Gráficos e Visualizações
+// (Configurações globais estão em main.js)
 
 let overviewChart = null;
-
-// Configurações de cores para os gráficos
-const chartColors = {
-    temperature: '#dc3545',
-    pressure: '#007bff',
-    velocity: '#28a745',
-    background: {
-        temperature: 'rgba(220, 53, 69, 0.1)',
-        pressure: 'rgba(0, 123, 255, 0.1)',
-        velocity: 'rgba(40, 167, 69, 0.1)'
-    }
-};
-
-// Configuração padrão dos gráficos
-const defaultChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: {
-        intersect: false,
-        mode: 'index'
-    },
-    plugins: {
-        legend: {
-            position: 'top'
-        },
-        tooltip: {
-            backgroundColor: 'rgba(0,0,0,0.8)',
-            titleColor: 'white',
-            bodyColor: 'white',
-            borderColor: '#dee2e6',
-            borderWidth: 1
-        }
-    },
-    scales: {
-        x: {
-            type: 'time',
-            time: {
-                displayFormats: {
-                    hour: 'HH:mm',
-                    day: 'DD/MM'
-                }
-            },
-            grid: {
-                color: 'rgba(0,0,0,0.1)'
-            }
-        },
-        y: {
-            beginAtZero: true,
-            grid: {
-                color: 'rgba(0,0,0,0.1)'
-            }
-        }
-    }
-};
 
 // Carregar gráfico de overview
 async function loadOverviewChart() {
@@ -78,21 +25,21 @@ async function loadOverviewChart() {
                 
                 if (sensors[i].includes('Temp') || sensors[i].includes('Torre')) {
                     dataPoints = sensorData.map(d => ({
-                        x: d.timestamp,
+                        x: new Date(d.timestamp).getTime(),
                         y: d.temperature
-                    })).filter(d => d.y !== null);
+                    })).filter(d => d.y !== null && !isNaN(d.x));
                     label += ' (°C)';
                 } else if (sensors[i].includes('Pressão')) {
                     dataPoints = sensorData.map(d => ({
-                        x: d.timestamp,
+                        x: new Date(d.timestamp).getTime(),
                         y: d.pressure
-                    })).filter(d => d.y !== null);
+                    })).filter(d => d.y !== null && !isNaN(d.x));
                     label += ' (bar)';
                 } else if (sensors[i].includes('Velocidade')) {
                     dataPoints = sensorData.map(d => ({
-                        x: d.timestamp,
+                        x: new Date(d.timestamp).getTime(),
                         y: d.velocity
-                    })).filter(d => d.y !== null);
+                    })).filter(d => d.y !== null && !isNaN(d.x));
                     label += ' (rpm)';
                 }
                 
@@ -108,6 +55,27 @@ async function loadOverviewChart() {
                     });
                 }
             }
+        }
+        
+        // Verificar se há dados para mostrar
+        if (datasets.length === 0) {
+            const canvas = document.getElementById('overview-chart');
+            if (canvas) {
+                const container = canvas.parentElement;
+                container.innerHTML = `
+                    <div class="alert alert-info text-center">
+                        <i class="fas fa-info-circle"></i>
+                        <h6>Aguardando dados dos sensores</h6>
+                        <p class="mb-0">
+                            <small>Execute o dashboard principal para começar a coletar dados.</small>
+                        </p>
+                        <div class="mt-2">
+                            <code>python3 dashboard.py --img assets/base.jpeg</code>
+                        </div>
+                    </div>
+                `;
+            }
+            return;
         }
         
         // Destruir gráfico anterior se existir
@@ -133,9 +101,23 @@ async function loadOverviewChart() {
         
     } catch (error) {
         console.error('Erro ao carregar gráfico de overview:', error);
-        const ctx = document.getElementById('overview-chart');
-        if (ctx) {
-            ctx.getContext('2d').fillText('Erro ao carregar gráfico', 10, 50);
+        
+        // Mostrar mensagem de erro amigável
+        const canvas = document.getElementById('overview-chart');
+        if (canvas) {
+            const container = canvas.parentElement;
+            container.innerHTML = `
+                <div class="alert alert-warning text-center">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h6>Gráfico temporariamente indisponível</h6>
+                    <p class="mb-0">
+                        <small>Execute o dashboard para gerar dados ou aguarde alguns minutos.</small>
+                    </p>
+                    <button class="btn btn-sm btn-outline-primary mt-2" onclick="loadOverviewChart()">
+                        <i class="fas fa-sync-alt"></i> Tentar novamente
+                    </button>
+                </div>
+            `;
         }
     }
 }
@@ -175,28 +157,7 @@ function formatChartDate(dateString) {
     });
 }
 
-// Calcular estatísticas básicas de um array
-function calculateStats(data) {
-    if (!data || data.length === 0) {
-        return { min: 0, max: 0, avg: 0, count: 0 };
-    }
-    
-    const values = data.filter(v => v !== null && v !== undefined);
-    if (values.length === 0) {
-        return { min: 0, max: 0, avg: 0, count: 0 };
-    }
-    
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const avg = values.reduce((a, b) => a + b, 0) / values.length;
-    
-    return {
-        min: parseFloat(min.toFixed(2)),
-        max: parseFloat(max.toFixed(2)),
-        avg: parseFloat(avg.toFixed(2)),
-        count: values.length
-    };
-}
+// Função calculateStats agora está em main.js (global)
 
 // Event listeners específicos do dashboard
 document.addEventListener('DOMContentLoaded', function() {

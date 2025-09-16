@@ -27,11 +27,15 @@ echo "   (O dashboard será executado por 30 segundos para criar dados de exempl
 echo ""
 
 # Executar dashboard em background por 30 segundos
-timeout 30 python3 dashboard.py --img assets/base.jpeg 2>/dev/null &
+python3 dashboard.py --img assets/base.jpeg 2>/dev/null &
 DASHBOARD_PID=$!
 
 echo "⏳ Gerando dados de exemplo... (30 segundos)"
+
+# Aguardar 30 segundos e depois matar o processo
 sleep 30
+kill $DASHBOARD_PID 2>/dev/null || true
+wait $DASHBOARD_PID 2>/dev/null || true
 
 # Verificar se o banco foi criado
 if [ -f "sensor_data.db" ]; then
@@ -43,7 +47,7 @@ if [ -f "sensor_data.db" ]; then
     
     echo ""
     echo "🌐 Iniciando servidor web..."
-    echo "   Acesse: http://localhost:5000"
+    echo "   Acesse: http://localhost:8080"
     echo "   Pressione Ctrl+C para parar"
     echo ""
     

@@ -18,7 +18,7 @@ ap.add_argument("--thermo-torre2", nargs=3, type=int, default=[7, 8, 23],
                 metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Torre Nível 2 (padrão: 7 8 23)")
 ap.add_argument("--thermo-torre3", nargs=3, type=int, default=[21, 20, 16], 
                 metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Torre Nível 3 (padrão: 21 20 16)")
-ap.add_argument("--thermo-tanque", nargs=3, type=int, default=[4, 3, 2], 
+ap.add_argument("--thermo-tanque", nargs=3, type=int, default=[4, 6, 5],
                 metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Tanque (padrão: 4 3 2)")
 ap.add_argument("--thermo-gases", nargs=3, type=int, default=[22, 27, 17], 
                 metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Saída Gases (padrão: 22 27 17)")

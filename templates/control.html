@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Controle do Sistema - TempPi{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4"><i class="fas fa-cogs"></i> Painel de Controle</h1>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Coluna de Controles Manuais e Status -->
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5><i class="fas fa-toggle-on"></i> Controles Gerais</h5>
+            </div>
+            <div class="card-body">
+                <!-- Modo de Operação -->
+                <div class="mb-3">
+                    <h6>Modo de Operação</h6>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="system_mode" id="mode-auto" value="0" autocomplete="off" checked>
+                        <label class="btn btn-outline-primary" for="mode-auto"><i class="fas fa-robot"></i> Automático</label>
+                        
+                        <input type="radio" class="btn-check" name="system_mode" id="mode-manual" value="1" autocomplete="off">
+                        <label class="btn btn-outline-secondary" for="mode-manual"><i class="fas fa-hand-paper"></i> Manual</label>
+                    </div>
+                </div>
+
+                <!-- Acionamento Aquecimento -->
+                <div class="mb-3">
+                    <h6>Controle de Aquecimento (Auto)</h6>
+                    <div class="d-grid">
+                        <button class="btn btn-danger" id="heating-status-btn" data-status="0">
+                            <i class="fas fa-power-off"></i> Ligar Aquecimento
+                        </button>
+                    </div>
+                </div>
+                
+                <hr>
+
+                <!-- Controles Manuais -->
+                <div id="manual-controls" class="disabled">
+                    <h6 class="mb-3">Acionamentos Manuais</h6>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-success" id="manual-fan-btn"><i class="fas fa-fan"></i> Ventilador</button>
+                        <button class="btn btn-outline-success" id="manual-screw-btn"><i class="fas fa-cogs"></i> Rosca de Alimentação</button>
+                        <div class="btn-group w-100">
+                            <button class="btn btn-outline-success" id="manual-drum-fwd-btn"><i class="fas fa-arrow-up"></i> Tambor Avanço</button>
+                            <button class="btn btn-outline-success" id="manual-drum-rev-btn"><i class="fas fa-arrow-down"></i> Tambor Retorno</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Coluna de Ajustes de Temperatura -->
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5><i class="fas fa-thermometer-half"></i> Ajustes de Temperatura (°C)</h5>
+            </div>
+            <div class="card-body">
+                <form id="temp-settings-form">
+                    <div class="input-group mb-3">
+                        <span class="input-group-text" style="width: 150px;">Temp. Forno (Min/Max)</span>
+                        <input type="number" class="form-control" id="temp_forno_min" placeholder="Min">
+                        <input type="number" class="form-control" id="temp_forno_max" placeholder="Max">
+                    </div>
+                    <div class="input-group mb-3">
+                        <span class="input-group-text" style="width: 150px;">Torre Nível 1 (Min/Max)</span>
+                        <input type="number" class="form-control" id="temp_torre1_min" placeholder="Min">
+                        <input type="number" class="form-control" id="temp_torre1_max" placeholder="Max">
+                    </div>
+                    <div class="input-group mb-3">
+                        <span class="input-group-text" style="width: 150px;">Torre Nível 2 (Min/Max)</span>
+                        <input type="number" class="form-control" id="temp_torre2_min" placeholder="Min">
+                        <input type="number" class="form-control" id="temp_torre2_max" placeholder="Max">
+                    </div>
+                    <div class="input-group mb-3">
+                        <span class="input-group-text" style="width: 150px;">Torre Nível 3 (Min/Max)</span>
+                        <input type="number" class="form-control" id="temp_torre3_min" placeholder="Min">
+                        <input type="number" class="form-control" id="temp_torre3_max" placeholder="Max">
+                    </div>
+                    <div class="input-group mb-3">
+                        <span class="input-group-text" style="width: 150px;">Temp. Tanque (Min/Max)</span>
+                        <input type="number" class="form-control" id="temp_tanque_min" placeholder="Min">
+                        <input type="number" class="form-control" id="temp_tanque_max" placeholder="Max">
+                    </div>
+                    <div class="input-group mb-3">
+                        <span class="input-group-text" style="width: 150px;">Saída Gases (Min/Max)</span>
+                        <input type="number" class="form-control" id="temp_gases_min" placeholder="Min">
+                        <input type="number" class="form-control" id="temp_gases_max" placeholder="Max">
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Coluna de Ajustes de Pressão e Tempo -->
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5><i class="fas fa-tachometer-alt"></i> Ajustes de Pressão e Tempo</h5>
+            </div>
+            <div class="card-body">
+                <form id="pressure-time-settings-form">
+                    <h6 class="mb-2">Pressão (bar)</h6>
+                    <div class="input-group mb-3">
+                        <span class="input-group-text" style="width: 180px;">Pressão Linha (Min/Max)</span>
+                        <input type="number" class="form-control" id="pressao_linha_min" placeholder="Min">
+                        <input type="number" class="form-control" id="pressao_linha_max" placeholder="Max">
+                    </div>
+                    <hr>
+                    <h6 class="mb-2">Tempo (segundos)</h6>
+                    <div class="input-group mb-3">
+                        <span class="input-group-text" style="width: 180px;">Acionamento Resistência</span>
+                        <input type="number" class="form-control" id="tempo_acionamento_resistencia">
+                    </div>
+                    <div class="input-group mb-3">
+                        <span class="input-group-text" style="width: 180px;">Acionamento Rosca</span>
+                        <input type="number" class="form-control" id="tempo_acionamento_rosca">
+                    </div>
+                    <div class="input-group mb-3">
+                        <span class="input-group-text" style="width: 180px;">Pausa Rosca</span>
+                        <input type="number" class="form-control" id="tempo_pausa_rosca">
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    #manual-controls.disabled {
+        opacity: 0.5;
+        pointer-events: none;
+    }
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/control.js') }}"></script>
+{% endblock %}

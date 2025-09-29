@@ -1,6 +1,7 @@
 # Dependências básicas (todas as plataformas)
 opencv-python>=4.5.0
 numpy>=1.20.0
+pandas>=1.5.0
 
 # Banco de dados (built-in com Python)
 # sqlite3 - já incluído no Python
@@ -8,6 +9,11 @@ numpy>=1.20.0
 # Servidor HTTP e visualização
 flask>=2.3.0
 werkzeug>=2.3.0
+
+# Comunicação em tempo real (WebSockets)
+Flask-SocketIO>=5.3.0
+python-socketio>=5.7.0
+eventlet>=0.33.0
 
 # Dependências específicas do Raspberry Pi
 # Instalar apenas quando executar em modo --use-rpi
@@ -24,5 +30,4 @@ RPi.GPIO>=0.7.0
 
 # Para desenvolvimento (opcionais)
 # matplotlib>=3.5.0  # para análises avançadas
-# pandas>=1.5.0      # para manipulação de dados
 # plotly>=5.0.0       # para gráficos interativos

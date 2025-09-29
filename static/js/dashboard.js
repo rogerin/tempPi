@@ -2,6 +2,7 @@
 // (Configurações globais estão em main.js)
 
 let overviewChart = null;
+let averageTempChart = null;
 
 // Carregar gráfico de overview
 async function loadOverviewChart() {
@@ -122,6 +123,59 @@ async function loadOverviewChart() {
     }
 }
 
+// Carregar gráfico de média de temperatura
+async function loadAverageTempChart() {
+    try {
+        const ctx = document.getElementById('average-temp-chart');
+        if (!ctx) return;
+
+        const avgData = await fetchAPI('chart/average_temperature?hours=24');
+
+        if (avgData.length === 0) {
+            // Mensagem se não houver dados
+            return;
+        }
+
+        const dataPoints = avgData.map(d => ({
+            x: new Date(d.timestamp).getTime(),
+            y: d.temperature
+        }));
+
+        const dataset = {
+            label: 'Média de Temperatura (°C)',
+            data: dataPoints,
+            borderColor: '#ff6384',
+            backgroundColor: '#ff638420',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4
+        };
+
+        if (averageTempChart) {
+            averageTempChart.destroy();
+        }
+
+        averageTempChart = new Chart(ctx, {
+            type: 'line',
+            data: { datasets: [dataset] },
+            options: {
+                ...defaultChartOptions,
+                plugins: {
+                    ...defaultChartOptions.plugins,
+                    title: {
+                        display: true,
+                        text: 'Média de Temperatura - Últimas 24 Horas'
+                    }
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Erro ao carregar gráfico de média de temperatura:', error);
+    }
+}
+
+
 // Atualizar estatísticas em tempo real
 async function updateStats() {
     try {
@@ -164,9 +218,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Carregar gráfico de overview se estivermos na página principal
     if (document.getElementById('overview-chart')) {
         loadOverviewChart();
+        loadAverageTempChart();
         
         // Atualizar gráfico a cada 5 minutos
         setInterval(loadOverviewChart, 5 * 60 * 1000);
+        setInterval(loadAverageTempChart, 5 * 60 * 1000);
     }
     
     // Atualizar estatísticas a cada 30 segundos

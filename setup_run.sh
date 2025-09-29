@@ -1,28 +1,52 @@
 #!/bin/bash
-# setup_run.sh - Script para preparar e iniciar o projeto no Raspberry Pi
+# setup_run.sh - Script para preparar e iniciar o projeto
 
-# Caminho base do projeto
-PROJ_DIR="/home/admin/Documentos/tempPi"
+# Encerra processos anteriores para evitar conflitos de porta
+cleanup() {
+    echo "Encerrando processos anteriores..."
+    pkill -f sensor_server.py
+    pkill -f dashboard.py
+    exit
+}
 
-cd "$PROJ_DIR" || { echo "Diretório $PROJ_DIR não encontrado"; exit 1; }
+trap cleanup INT
 
-echo "=== Criando ambiente virtual (.venv) ==="
-python3 -m venv .venv
+# Caminho base do projeto (detecta o diretório do script)
+PROJ_DIR=$(dirname "$0")
+cd "$PROJ_DIR" || { echo "Erro ao acessar o diretório do projeto"; exit 1; }
 
-echo "=== Ativando ambiente virtual ==="
+echo "=== Verificando e ativando ambiente virtual (.venv) ==="
+if [ ! -d ".venv" ]; then
+    echo "Criando ambiente virtual..."
+    python3 -m venv .venv
+fi
 source .venv/bin/activate
 
-echo "=== Atualizando pip ==="
+echo "=== Instalando/Atualizando dependências de requirements.txt ==="
 pip install --upgrade pip
+pip install -r requirements.txt
 
-echo "=== Instalando dependências ==="
-pip install opencv-python numpy RPi.GPIO flask
+# Pergunta ao usuário se deseja usar o modo RPi
+USE_RPI_FLAG=""
+read -p "Deseja executar em modo Raspberry Pi (GPIO)? (s/N) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Ss]$ ]]
+then
+    USE_RPI_FLAG="--use-rpi"
+    echo "Modo Raspberry Pi ATIVADO."
+else
+    echo "Modo de Simulação ATIVADO."
+fi
 
-echo "=== Rodando dashboard.py ==="
-python3 dashboard.py --img assets/base.jpeg --use-rpi &
+echo "=== Iniciando Servidor Web (em background) ==="
+python3 sensor_server.py &
+SERVER_PID=$!
+sleep 2 # Dá um tempo para o servidor iniciar
 
-# espera alguns segundos para garantir que o dashboard está inicializado
-sleep 5
+echo "=== Iniciando Dashboard (em foreground) ==="
+# O dashboard tentará se conectar ao servidor
+python3 dashboard.py --img assets/base.jpeg $USE_RPI_FLAG
 
-echo "=== Rodando sensor_server.py ==="
-python3 sensor_server.py
+# Ao fechar o dashboard (Ctrl+C), encerra o servidor também
+kill $SERVER_PID
+echo "Processos finalizados."

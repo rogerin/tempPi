@@ -284,87 +284,76 @@ sudo python3 dashboard.py --img assets/base.jpeg --use-rpi
 
 - **ESC** ou **Ctrl+C**: fecha o programa.
 
-## 8) Sistema de Logging e Visualização Web
+## 8) Arquitetura e Comunicação em Tempo Real
+
+O sistema é dividido em dois componentes principais que se comunicam em tempo real via **WebSockets**:
+
+1.  **`sensor_server.py`**: Um servidor web Flask que também funciona como um **hub WebSocket (Socket.IO)**. Ele serve a interface do usuário (frontend) e gerencia a comunicação entre o navegador e o script de controle.
+
+2.  **`dashboard.py`**: O script principal que realiza a leitura dos sensores (ou simulação) e controla os atuadores (GPIOs). Ele atua como um **cliente WebSocket**, conectando-se ao `sensor_server.py` para:
+    - Receber comandos do painel de controle em tempo real.
+    - Enviar atualizações de status (leituras de sensores, estado dos atuadores) para a interface web.
+
+Essa arquitetura substitui o antigo método de polling do banco de dados, resultando em uma comunicação instantânea e eficiente.
 
 ### 🗄️ **Banco de Dados SQLite**
 
-O sistema agora salva **automaticamente** todas as leituras dos sensores em um banco SQLite:
+O banco de dados (`sensor_data.db`) ainda é usado para:
+- **Logging Histórico**: Armazenar todas as leituras dos sensores para análise futura.
+- **Persistência de Configurações**: Salvar os setpoints e ajustes do painel de controle para que não se percam ao reiniciar o sistema.
 
-- 📊 **Armazenamento automático** - Cada leitura é salva com timestamp
-- 🔍 **Dados estruturados** - Temperatura, pressão, velocidade organizados
-- 📈 **Histórico completo** - Todas as leituras ficam armazenadas
-- ⚡ **Performance otimizada** - Índices para consultas rápidas
+### 🚀 **Como Usar**
 
-### 🌐 **Servidor Web com Dashboard**
-
-**Novo servidor HTTP separado** para visualização avançada dos dados:
-
-```bash
-# Terminal 1: Executar coleta de dados
-python3 dashboard.py --img assets/base.jpeg --use-rpi
-
-# Terminal 2: Executar servidor web
-python3 sensor_server.py
-
-# Acessar: http://localhost:8080
-```
-
-**🎯 Funcionalidades do Dashboard Web:**
-
-#### 📊 **Visualizações Avançadas:**
-- **Gráficos em tempo real** com Chart.js
-- **Múltiplos tipos** - Linha, área, estatísticas
-- **Responsivo** - Funciona em desktop e mobile
-- **Interativo** - Zoom, tooltip, navegação
-
-#### 🔍 **Filtros e Busca:**
-- **Por sensor** - Visualizar dados específicos
-- **Por data** - Período customizável (1h a 1 semana)
-- **Paginação** - Navegação eficiente em grandes volumes
-- **Exportação** - Baixar dados filtrados
-
-#### 📈 **Estatísticas:**
-- **Valores atuais** - Última leitura de cada sensor
-- **Médias e extremos** - Min/max/média por período
-- **Contadores** - Total de leituras, sensores ativos
-- **Performance** - Leituras nas últimas 24h
-
-#### 🎨 **Interface Moderna:**
-- **Bootstrap 5** - Design responsivo e moderno
-- **Font Awesome** - Ícones profissionais
-- **Cores intuitivas** - Temperatura (vermelho), Pressão (azul), Velocidade (verde)
-- **Auto-refresh** - Atualização automática opcional
-
-### 🚀 **Como Usar:**
+É crucial seguir a ordem de execução para que a comunicação WebSocket funcione corretamente.
 
 #### **Instalação Completa:**
 ```bash
-# Instalar dependências (inclui Flask)
-pip install flask werkzeug opencv-python numpy RPi.GPIO
-
-# Ou usar o script automático
-./install_rpi.sh
+# Instalar todas as dependências do projeto
+pip install -r requirements.txt
 ```
 
 #### **Execução:**
+
+**1. Inicie o Servidor Web e WebSocket (Terminal 1):**
 ```bash
-# Demonstração rápida
-./run_demo.sh
-
-# Ou executar manualmente:
-# 1. Coletar dados
-python3 dashboard.py --img assets/base.jpeg
-
-# 2. Visualizar na web
 python3 sensor_server.py
 ```
 
+**2. Inicie o Dashboard de Controle (Terminal 2):**
+```bash
+# Para modo de simulação
+python3 dashboard.py --img assets/base.jpeg
+
+# Ou para modo Raspberry Pi
+python3 dashboard.py --img assets/base.jpeg --use-rpi
+```
+
 #### **Acesso:**
-- **Dashboard Web**: http://localhost:8080
-- **Para rede local**: Execute com `--host 0.0.0.0`
+- **Dashboard Principal**: [http://localhost:8080](http://localhost:8080)
+- **Painel de Controle**: [http://localhost:8080/control](http://localhost:8080/control)
 
-## 9) Posicionamento dos valores na imagem
+## 10) Painel de Controle Web
 
-As posições dos 8 campos são proporcionais à imagem (0.0–1.0) e podem ser ajustadas no dicionário `POSITIONS_NORM` dentro do arquivo `dashboard.py`.
+O sistema agora inclui um **Painel de Controle** completo, acessível pela web, que permite o controle total sobre o processo.
 
-Para encontrar as coordenadas, mova o cursor sobre a imagem; no canto superior esquerdo aparecem as coordenadas normalizadas (x, y) que você pode usar.
+**Acesso:**
+- **Painel de Controle**: [http://localhost:8080/control](http://localhost:8080/control)
+
+### Funcionalidades do Painel de Controle
+
+#### 🕹️ **Modo de Operação**
+- **Automático**: O sistema controla o aquecimento do forno com base nos setpoints de temperatura mínima e máxima.
+- **Manual**: Permite o acionamento individual de cada atuador.
+
+#### 🔥 **Controle de Aquecimento (Modo Automático)**
+- **Ligar/Desligar Aquecimento**: Inicia ou para o processo de controle de temperatura do forno.
+- **Lógica de Controle**:
+  - Se a `Temperatura do Forno` < `Temp. Mínima`, o sistema liga o **ventilador**, a **resistência** (por um tempo determinado) e o **motor da rosca** (em ciclos de acionamento e pausa).
+  - Se a `Temperatura do Forno` > `Temp. Máxima`, todos os atuadores são desligados.
+
+#### 🛠️ **Ajustes e Setpoints**
+- **Ajustes de Temperatura**: Defina os valores de **mínimo e máximo** para o controle de temperatura do forno.
+- **Ajustes de Tempo**: Configure os temporizadores para o **acionamento da resistência**, e o **acionamento e pausa do motor da rosca**.
+
+####  MANUAL
+- **Acionamentos Manuais**: No modo manual, é possível ligar e desligar individualmente o **ventilador**, o **motor da rosca** e o **motor do tambor** (avanço/retorno).

@@ -63,11 +63,6 @@ def handle_dashboard_update(data):
 # ============= INICIALIZAÇÃO =============
 
 if __name__ == '__main__':
-    if not os.path.exists(DATABASE_PATH):
-        print(f"❌ Banco de dados '{DATABASE_PATH}' não encontrado.")
-        print("   Por favor, execute o script dashboard.py primeiro para criá-lo.")
-        exit(1)
-    
     print("🚀 Iniciando servidor Web e WebSocket...")
     print(f"🌐 Acesse o dashboard em http://localhost:8080")
     print(f"🕹️ Acesse o painel de controle em http://localhost:8080/control")

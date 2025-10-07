@@ -1,359 +1,96 @@
-# Dashboard Overlay (Painel-Apenas) – README
+# Projeto Dashboard IoT com Controle Remoto
 
-Projeto em Python para simular e/ou ler dados (Raspberry Pi) e sobrepor valores em pontos de uma imagem (ex.: fluxograma da planta). Esta é uma versão simplificada que exibe apenas o painel principal, sem a janela de gráficos.
+Este projeto implementa um sistema de monitoramento e controle para um processo de destilação (ou similar), consistindo em um dashboard visual com sobreposição de dados em uma imagem e um painel de controle web completo para operação remota.
 
-## 1) Requisitos
-
-- **Python 3.9+** (recomendado 3.10/3.11)
-- **Sistema**: macOS, Windows ou Linux (Raspberry Pi opcional)
-
-### Dependências
-
-#### Instalação Básica (Modo Simulação)
-```bash
-pip install opencv-python numpy
-```
-
-#### Instalação Completa (Raspberry Pi)
-
-**🚀 Instalação Simples (Sem bibliotecas externas):**
-```bash
-# Instalar apenas dependências básicas
-sudo apt update
-sudo apt install python3-dev python3-pip python3-venv
-
-# Criar e ativar ambiente virtual (recomendado)
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Instalar apenas as dependências essenciais
-pip install opencv-python numpy RPi.GPIO
-```
-
-**📝 Instalação Automática (Script):**
-```bash
-# Executar script de instalação automática
-chmod +x install_rpi.sh
-./install_rpi.sh
-```
-
-**⚡ Não precisa mais de bibliotecas MAX6675!**
-O sistema agora usa implementação nativa que funciona apenas com `RPi.GPIO`.
-
-#### Resolução de Problemas Comuns
-
-**Se houver erro de permissão GPIO:**
-```bash
-sudo usermod -a -G gpio $USER
-# Depois faça logout/login ou reinicie
-```
-
-**Instalação sem ambiente virtual:**
-```bash
-pip install opencv-python numpy RPi.GPIO
-```
-
-## 2) Arquivo principal
-
-O projeto é um único arquivo:
-
-- `dashboard.py`
-
-Coloque a sua imagem de fundo (jpg/png) na mesma pasta do projeto.
-
-## 3) Como rodar
-
-### Modo Simulação (padrão)
-```bash
-python3 dashboard.py --img assets/base.jpeg
-```
-
-### Modo Raspberry Pi
-```bash
-python3 dashboard.py --img assets/base.jpeg --use-rpi
-```
-
-### Modo Raspberry Pi com pinos customizados
-```bash
-python3 dashboard.py --img assets/base.jpeg --use-rpi \
-  --thermo-torre1 25 24 18 \
-  --thermo-torre2 7 8 23 \
-  --thermo-torre3 21 20 16 \
-  --thermo-tanque 4 3 2 \
-  --thermo-gases 22 27 17 \
-  --thermo-forno 11 9 10 \
-  --pressao1-pin 2 \
-  --pressao2-pin 3 \
-  --ventilador-pin 14 \
-  --resistencia-pin 26 \
-  --motor-rosca-pin 12 \
-  --tambor-dir-pin 13 \
-  --tambor-pul-pin 19 \
-  --scale 1.0
-```
-
-**Parâmetros básicos:**
-- `--img`: caminho da imagem de fundo (obrigatório).
-- `--scale`: escala da janela principal (opcional). Ex.: 0.8, 1.0, 1.2.
-- `--use-rpi`: ativa o modo de leitura dos sensores no Raspberry Pi (opcional).
-
-**Parâmetros de configuração GPIO:**
-
-*Sensores de temperatura MAX6675 (3 pinos cada na ordem: SCK, CS, SO):*
-- `--thermo-torre1`: Pinos SCK CS SO para sensor Torre Nível 1 (padrão: 25 24 18)
-- `--thermo-torre2`: Pinos SCK CS SO para sensor Torre Nível 2 (padrão: 7 8 23)  
-- `--thermo-torre3`: Pinos SCK CS SO para sensor Torre Nível 3 (padrão: 21 20 16)
-- `--thermo-tanque`: Pinos SCK CS SO para sensor Tanque (padrão: 4 3 2)
-- `--thermo-gases`: Pinos SCK CS SO para sensor Saída Gases (padrão: 22 27 17)
-- `--thermo-forno`: Pinos SCK CS SO para sensor Forno (padrão: 11 9 10)
-
-  **Nota:** SCK = Serial Clock, CS = Chip Select, SO = Serial Output
-
-*Sensores de pressão:*
-- `--pressao1-pin`: Pino para Transdutor de Pressão 1 (padrão: 2)
-- `--pressao2-pin`: Pino para Transdutor de Pressão 2 (padrão: 3)
-
-*Controles/Atuadores:*
-- `--ventilador-pin`: Pino para controle do Ventilador (padrão: 14)
-- `--resistencia-pin`: Pino para controle da Resistência (padrão: 26)
-- `--motor-rosca-pin`: Pino para Motor Rosca Alimentação (padrão: 12)
-- `--tambor-dir-pin`: Pino para DIR+ Driver Motor Tambor (padrão: 13)
-- `--tambor-pul-pin`: Pino para PUL+ Driver Motor Tambor (padrão: 19)
-
-Na janela **Painel**, você verá os valores sobrepostos nos campos da sua imagem.
-
-### Exemplos de uso avançado
-
-**Ver ajuda completa:**
-```bash
-python3 dashboard.py --help
-```
-
-**Customizar apenas alguns pinos específicos:**
-```bash
-python3 dashboard.py --img assets/base.jpeg --use-rpi \
-  --thermo-forno 5 6 7 \
-  --thermo-torre1 8 9 10 \
-  --ventilador-pin 15 \
-  --resistencia-pin 18
-```
-
-**Executar com escala diferente:**
-```bash
-python3 dashboard.py --img assets/base.jpeg --scale 0.8 --use-rpi
-```
-
-## 4) Modo Simulação
-
-Por padrão, ou quando a flag `--use-rpi` não está presente, o script é executado em modo de simulação. Neste modo:
-
-- Os valores são gerados aleatoriamente para simular a chegada de dados de sensores.
-- As atualizações ocorrem a cada 2 segundos com pequenas variações para parecerem mais realistas.
-- Não há controles de teclado para ajustar os valores; a simulação é automática.
-
-## 5) Sistema de Validação de Sensores
-
-### 🔍 Implementação Nativa MAX6675
-
-O sistema agora inclui uma **implementação nativa** do protocolo MAX6675 usando apenas `RPi.GPIO`:
-
-**🎉 Vantagens da Implementação Nativa:**
-- ✅ **Zero dependências externas** - Funciona apenas com RPi.GPIO
-- 🚀 **Instalação simples** - Não precisa instalar bibliotecas MAX6675
-- 🔧 **Protocolo SPI nativo** - Implementação bit-bang do protocolo SPI
-- 📡 **Comunicação direta** - Controle total sobre timing e sinais
-- 🛡️ **Detecção de erros** - Verifica problemas no termopar automaticamente
-
-### 🔍 Teste Automático de Sensores (Modo Raspberry Pi)
-
-Quando executado com `--use-rpi`, o sistema agora inclui uma **validação robusta** de todos os sensores antes de iniciar:
-
-**Características da validação:**
-- ✅ **3 tentativas por sensor** - Cada sensor é testado até 3 vezes para garantir funcionamento
-- 📊 **Relatório detalhado** - Mostra status individual de cada sensor
-- ⏱️ **Timeout inteligente** - Pausa entre tentativas para estabilização
-- 🎯 **Validação de dados** - Verifica se as leituras estão dentro de faixas válidas
-- 🚫 **Bloqueio de execução** - O programa só inicia se todos os sensores estiverem funcionando
-
-**Exemplo de saída da validação:**
-```
-🔍 Iniciando implementação nativa MAX6675 (sem bibliotecas externas)...
-✅ Usando implementação nativa MAX6675 com RPi.GPIO!
-📡 Protocolo SPI implementado diretamente - não precisa de bibliotecas externas!
-
-🔍 Iniciando teste detalhado dos sensores de temperatura...
-⏱️  Cada sensor será testado 3 vezes para garantir funcionamento correto.
-git a
-[1/6] ==================================================
-📡 Testando sensor 'Torre Nível 1' (Pinos SCK:25, CS:24, SO:18)...
-  ✅ Tentativa 1/3: SUCESSO - Temperatura: 23.5°C
-✨ Sensor 'Torre Nível 1' APROVADO!
-
-[2/6] ==================================================
-📡 Testando sensor 'Torre Nível 2' (Pinos SCK:7, CS:8, SO:23)...
-  ❌ Tentativa 1/3: FALHA - No response from sensor
-     🔄 Aguardando 1s antes da próxima tentativa...
-  ❌ Tentativa 2/3: FALHA - Invalid reading: -999.0°C
-     🔄 Aguardando 1s antes da próxima tentativa...
-  ❌ Tentativa 3/3: FALHA - Connection timeout
-     💥 Sensor 'Torre Nível 2' falhou em todas as tentativas!
-💀 Sensor 'Torre Nível 2' REPROVADO!
-
-======================================================================
-📊 RELATÓRIO FINAL DE VALIDAÇÃO DOS SENSORES
-======================================================================
-✅ Sensores funcionando: 5/6
-❌ Sensores com falha: 1/6
-
-🎉 SENSORES APROVADOS:
-  ✅ Torre Nível 1: 23.5°C (Pinos: (25, 24, 18))
-  ✅ Temp Tanque: 25.2°C (Pinos: (4, 3, 2))
-  ...
-
-💥 SENSORES REPROVADOS:
-  ❌ Torre Nível 2: Sem resposta (Pinos: (7, 8, 23))
-
-⚠️  ATENÇÃO: 1 sensor(es) não está(ão) funcionando!
-🔧 Verifique:
-   • Conexões físicas dos pinos
-   • Alimentação dos sensores (3.3V ou 5V)
-   • Soldas dos conectores
-   • Termopares conectados corretamente
-```
-
-### 🛡️ Proteção Contra Problemas Comuns
-
-O sistema detecta e relata:
-- **Conexões soltas** - Sensores que não respondem
-- **Leituras inválidas** - Temperaturas fora da faixa (-50°C a 1000°C)
-- **Problemas de alimentação** - Falhas na comunicação SPI
-- **Configuração incorreta** - Pinos invertidos ou conflitantes
-
-## 6) Troubleshooting Raspberry Pi
-
-### 🔧 Problemas Comuns e Soluções
-
-#### Erro: "No module named 'RPi'"
-```bash
-# Solução 1: Instalar RPi.GPIO
-pip install RPi.GPIO
-
-# Solução 2: Se estiver em ambiente virtual
-source .venv/bin/activate
-pip install RPi.GPIO
-
-# Solução 3: Instalar via apt (sistema)
-sudo apt install python3-rpi.gpio
-```
-
-#### ⚡ Sensores MAX6675 - Sem Bibliotecas Necessárias!
-
-O sistema agora usa **implementação nativa** que funciona apenas com `RPi.GPIO`. 
-Não é mais necessário instalar bibliotecas MAX6675 externas!
-
-#### Erro: "Permission denied" nos GPIOs
-```bash
-# Adicionar usuário ao grupo gpio
-sudo usermod -a -G gpio $USER
-
-# Ou executar com sudo (não recomendado)
-sudo python3 dashboard.py --img assets/base.jpeg --use-rpi
-```
-
-#### Sensores não respondem
-1. **Verificar conexões físicas:**
-   - VCC → 3.3V ou 5V
-   - GND → Ground
-   - SCK, CS, SO → Pinos GPIO corretos
-
-2. **Verificar pinos no código:**
-   ```bash
-   # Ver ajuda com todos os pinos
-   python3 dashboard.py --help
-   
-   # Testar com pinos diferentes
-   python3 dashboard.py --img assets/base.jpeg --use-rpi \
-     --thermo-forno 11 9 10
-   ```
-
-3. **Verificar termopar:**
-   - Termopar tipo K conectado nos pinos T+ e T-
-   - Polaridade correta
-
-## 7) Controles
-
-- **ESC** ou **Ctrl+C**: fecha o programa.
-
-## 8) Arquitetura e Comunicação em Tempo Real
+## Arquitetura
 
 O sistema é dividido em dois componentes principais que se comunicam em tempo real via **WebSockets**:
 
-1.  **`sensor_server.py`**: Um servidor web Flask que também funciona como um **hub WebSocket (Socket.IO)**. Ele serve a interface do usuário (frontend) e gerencia a comunicação entre o navegador e o script de controle.
+1.  **`sensor_server.py`**: Um servidor web (Flask) que atua como um hub WebSocket. Ele serve a interface do usuário para o navegador e gerencia a comunicação entre o painel de controle web e o script do dashboard.
 
-2.  **`dashboard.py`**: O script principal que realiza a leitura dos sensores (ou simulação) e controla os atuadores (GPIOs). Ele atua como um **cliente WebSocket**, conectando-se ao `sensor_server.py` para:
-    - Receber comandos do painel de controle em tempo real.
-    - Enviar atualizações de status (leituras de sensores, estado dos atuadores) para a interface web.
+2.  **`dashboard.py`**: O cliente pesado que executa no Raspberry Pi (ou em modo de simulação). Ele é responsável por:
+    - Ler os dados dos sensores (temperatura, pressão, etc.).
+    - Exibir os dados em um dashboard visual (OpenCV).
+    - Executar a lógica de controle (automático e manual).
+    - Comunicar-se com o `sensor_server.py` para receber comandos e enviar atualizações.
 
-Essa arquitetura substitui o antigo método de polling do banco de dados, resultando em uma comunicação instantânea e eficiente.
+## 1) Requisitos
 
-### 🗄️ **Banco de Dados SQLite**
+- **Python 3.9+**
+- **Sistema**: Linux (Raspberry Pi) ou qualquer sistema para modo de simulação.
 
-O banco de dados (`sensor_data.db`) ainda é usado para:
-- **Logging Histórico**: Armazenar todas as leituras dos sensores para análise futura.
-- **Persistência de Configurações**: Salvar os setpoints e ajustes do painel de controle para que não se percam ao reiniciar o sistema.
+## 2) Como Rodar (Método Simplificado)
 
-### 🚀 **Como Usar**
+Para facilitar a inicialização, use o script `setup_run.sh`. Ele cuida de tudo: prepara o ambiente, instala as dependências e inicia os dois componentes na ordem correta.
 
-É crucial seguir a ordem de execução para que a comunicação WebSocket funcione corretamente.
+**Passo a passo:**
 
-#### **Instalação Completa:**
+1.  **Dê permissão de execução ao script:**
+    ```bash
+    chmod +x setup_run.sh
+    ```
+
+2.  **Execute o script:**
+    ```bash
+    ./setup_run.sh
+    ```
+
+O script irá:
+- Criar e ativar um ambiente virtual (`.venv`).
+- Instalar todas as dependências do `requirements.txt`.
+- Iniciar o `sensor_server.py` em background.
+- Iniciar o `dashboard.py` em modo Raspberry Pi (`--use-rpi`).
+
+### Acesso
+
+- **Dashboard Visual**: Uma janela do OpenCV irá abrir mostrando a imagem com os dados dos sensores.
+- **Painel de Controle Web**: [http://localhost:8080/control](http://localhost:8080/control)
+- **Visualização Web**: [http://localhost:8080](http://localhost:8080)
+
+Para encerrar tudo, basta fechar a janela do dashboard ou pressionar `Ctrl+C` no terminal.
+
+## 3) Execução Manual (para Desenvolvimento)
+
+Se preferir iniciar os componentes separadamente:
+
+**1. Instale as dependências:**
 ```bash
-# Instalar todas as dependências do projeto
+# Crie e ative o ambiente virtual
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Instale os pacotes
 pip install -r requirements.txt
 ```
 
-#### **Execução:**
-
-**1. Inicie o Servidor Web e WebSocket (Terminal 1):**
+**2. Inicie o Servidor Web (Terminal 1):**
 ```bash
 python3 sensor_server.py
 ```
 
-**2. Inicie o Dashboard de Controle (Terminal 2):**
+**3. Inicie o Dashboard (Terminal 2):**
 ```bash
-# Para modo de simulação
-python3 dashboard.py --img assets/base.jpeg
-
-# Ou para modo Raspberry Pi
+# Para modo Raspberry Pi
 python3 dashboard.py --img assets/base.jpeg --use-rpi
+
+# Ou para modo de simulação
+python3 dashboard.py --img assets/base.jpeg
 ```
 
-#### **Acesso:**
-- **Dashboard Principal**: [http://localhost:8080](http://localhost:8080)
-- **Painel de Controle**: [http://localhost:8080/control](http://localhost:8080/control)
+## 4) Funcionalidades do Painel de Controle Web
 
-## 10) Painel de Controle Web
+O painel de controle (`http://localhost:8080/control`) permite:
 
-O sistema agora inclui um **Painel de Controle** completo, acessível pela web, que permite o controle total sobre o processo.
+- **Alternar entre modo Automático e Manual.**
+- **Ajustar setpoints** de temperatura para o controle automático.
+- **Configurar timers** para os atuadores.
+- **Acionar atuadores individualmente** no modo manual.
 
-**Acesso:**
-- **Painel de Controle**: [http://localhost:8080/control](http://localhost:8080/control)
+## 5) Argumentos de Linha de Comando
 
-### Funcionalidades do Painel de Controle
+O script `dashboard.py` aceita vários argumentos para customização:
 
-#### 🕹️ **Modo de Operação**
-- **Automático**: O sistema controla o aquecimento do forno com base nos setpoints de temperatura mínima e máxima.
-- **Manual**: Permite o acionamento individual de cada atuador.
-
-#### 🔥 **Controle de Aquecimento (Modo Automático)**
-- **Ligar/Desligar Aquecimento**: Inicia ou para o processo de controle de temperatura do forno.
-- **Lógica de Controle**:
-  - Se a `Temperatura do Forno` < `Temp. Mínima`, o sistema liga o **ventilador**, a **resistência** (por um tempo determinado) e o **motor da rosca** (em ciclos de acionamento e pausa).
-  - Se a `Temperatura do Forno` > `Temp. Máxima`, todos os atuadores são desligados.
-
-#### 🛠️ **Ajustes e Setpoints**
-- **Ajustes de Temperatura**: Defina os valores de **mínimo e máximo** para o controle de temperatura do forno.
-- **Ajustes de Tempo**: Configure os temporizadores para o **acionamento da resistência**, e o **acionamento e pausa do motor da rosca**.
-
-####  MANUAL
-- **Acionamentos Manuais**: No modo manual, é possível ligar e desligar individualmente o **ventilador**, o **motor da rosca** e o **motor do tambor** (avanço/retorno).
+- `--img`: Caminho da imagem de fundo (obrigatório).
+- `--scale`: Escala da janela (ex: `0.8`).
+- `--use-rpi`: Ativa o modo de leitura dos sensores no Raspberry Pi.
+- `--thermo-torre1`, `--ventilador-pin`, etc: Permitem customizar todos os pinos GPIO utilizados. Use `python3 dashboard.py --help` para ver todas as opções.

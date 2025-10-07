@@ -2,6 +2,7 @@
 opencv-python>=4.5.0
 numpy>=1.20.0
 pandas>=1.5.0
+requests>=2.28.0
 
 # Banco de dados (built-in com Python)
 # sqlite3 - já incluído no Python

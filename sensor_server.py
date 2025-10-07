@@ -8,7 +8,7 @@ import os
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret-key-for-iot-project'
-socketio = SocketIO(app, async_mode='eventlet')
+socketio = SocketIO(app)
 
 DATABASE_PATH = "sensor_data.db"
 
@@ -64,9 +64,7 @@ def handle_dashboard_update(data):
 
 if __name__ == '__main__':
     print("🚀 Iniciando servidor Web e WebSocket...")
-    print(f"🌐 Acesse o dashboard em http://localhost:8080")
-    print(f"🕹️ Acesse o painel de controle em http://localhost:8080/control")
+    print(f"🌐 Acesse o dashboard em http://localhost:3333")
+    print(f"🕹️ Acesse o painel de controle em http://localhost:3333/control")
     
-    # Usar eventlet é crucial para o bom funcionamento do SocketIO em produção
-    import eventlet
-    eventlet.wsgi.server(eventlet.listen(('127.0.0.1', 8080)), app)
+    socketio.run(app, host='127.0.0.1', port=3333)

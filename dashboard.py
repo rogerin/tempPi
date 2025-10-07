@@ -412,7 +412,7 @@ def main():
         raise SystemExit()
 
     try:
-        sio.connect('http://localhost:8080', namespaces=['/dashboard'])
+        sio.connect('http://localhost:3333', namespaces=['/dashboard'])
     except socketio.exceptions.ConnectionError as e:
         print(f"Falha ao conectar ao servidor: {e}")
         return

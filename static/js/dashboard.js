@@ -228,6 +228,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Atualizar estatísticas a cada 30 segundos
     updateStats();
     setInterval(updateStats, 30000);
+
+    // Se os elementos da tabela existem, inicializar listagem/paginação
+    if (document.getElementById('data-table')) {
+        initReadingsListing();
+    }
 });
 
 // Função para exportar dados do gráfico (placeholder)
@@ -245,5 +250,148 @@ function toggleChartFullscreen(chartId) {
         });
     } else {
         document.exitFullscreen();
+    }
+}
+
+// ================== Listagem com filtros e paginação ==================
+
+function getFilterParams() {
+    const sensor = document.getElementById('sensor-filter')?.value || '';
+    const start = document.getElementById('start-date')?.value || '';
+    const end = document.getElementById('end-date')?.value || '';
+    return { sensor, start, end };
+}
+
+async function fetchReadings(page = 1) {
+    const loading = document.getElementById('loading');
+    if (loading) loading.style.display = 'block';
+    try {
+        const { sensor, start, end } = getFilterParams();
+        const params = new URLSearchParams();
+        if (sensor) params.set('sensor', sensor);
+        if (start) params.set('start', start);
+        if (end) params.set('end', end);
+        params.set('page', String(page));
+
+        const res = await fetch(`/api/readings?${params.toString()}`);
+        if (!res.ok) throw new Error('Falha ao carregar leituras');
+        return await res.json();
+    } finally {
+        if (loading) loading.style.display = 'none';
+    }
+}
+
+function renderReadingsTable(items) {
+    const tbody = document.getElementById('data-table');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (!items || items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center">Nenhum dado encontrado</td></tr>';
+        return;
+    }
+    const rows = items.map(it => {
+        const t = it.timestamp ? it.timestamp.replace('T', ' ').slice(0, 19) : '';
+        return `
+            <tr>
+                <td>${t}</td>
+                <td>${it.sensor_name || ''}</td>
+                <td>${it.temperature ?? ''}</td>
+                <td>${it.pressure ?? ''}</td>
+                <td>${it.velocity ?? ''}</td>
+                <td>${it.sensor_type || ''}</td>
+                <td>${it.mode || ''}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-secondary" disabled>Ver</button>
+                </td>
+            </tr>`;
+    });
+    tbody.innerHTML = rows.join('');
+}
+
+function renderPagination(page, totalPages) {
+    const ul = document.getElementById('pagination');
+    if (!ul) return;
+    ul.innerHTML = '';
+
+    const createItem = (label, targetPage, disabled = false, active = false) => {
+        const li = document.createElement('li');
+        li.className = `page-item ${disabled ? 'disabled' : ''} ${active ? 'active' : ''}`;
+        const a = document.createElement('a');
+        a.className = 'page-link';
+        a.href = '#';
+        a.textContent = label;
+        a.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!disabled) loadPage(targetPage);
+        });
+        li.appendChild(a);
+        return li;
+    };
+
+    ul.appendChild(createItem('«', Math.max(1, page - 1), page === 1));
+
+    const maxPagesToShow = 7;
+    const start = Math.max(1, page - Math.floor(maxPagesToShow / 2));
+    const end = Math.min(totalPages, start + maxPagesToShow - 1);
+    const realStart = Math.max(1, end - maxPagesToShow + 1);
+
+    for (let p = realStart; p <= end; p++) {
+        ul.appendChild(createItem(String(p), p, false, p === page));
+    }
+
+    ul.appendChild(createItem('»', Math.min(totalPages, page + 1), page === totalPages));
+}
+
+async function loadPage(page = 1) {
+    try {
+        const data = await fetchReadings(page);
+        renderReadingsTable(data.items || []);
+        renderPagination(data.page || 1, data.total_pages || 1);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function initReadingsListing() {
+    // Primeiro carregamento
+    loadPage(1);
+
+    const form = document.getElementById('filter-form');
+    const refreshBtn = document.getElementById('refresh-data');
+    const clearBtn = document.getElementById('clear-filters');
+    const exportBtn = document.getElementById('export-data');
+
+    if (form) {
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            loadPage(1);
+        });
+    }
+
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => loadPage(1));
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            const sensor = document.getElementById('sensor-filter');
+            const start = document.getElementById('start-date');
+            const end = document.getElementById('end-date');
+            if (sensor) sensor.value = '';
+            if (start) start.value = '';
+            if (end) end.value = '';
+            loadPage(1);
+        });
+    }
+
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            const { sensor, start, end } = getFilterParams();
+            const params = new URLSearchParams();
+            if (sensor) params.set('sensor', sensor);
+            if (start) params.set('start', start);
+            if (end) params.set('end', end);
+            window.location.href = `/api/readings/export?${params.toString()}`;
+        });
     }
 }

@@ -2,7 +2,7 @@
 # sensor_server.py
 # Servidor HTTP e WebSocket para visualização e controle de dados dos sensores
 
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request, Response
 from flask_socketio import SocketIO
 import os
 import sqlite3
@@ -17,8 +17,55 @@ DATABASE_PATH = "sensor_data.db"
 
 @app.route('/')
 def index():
-    """Página principal do dashboard."""
-    return render_template('index.html')
+    """Página principal do dashboard: envia sensores e estatísticas iniciais para o template."""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+
+        # Sensores distintos
+        cursor.execute("SELECT DISTINCT sensor_name FROM sensor_readings")
+        sensors_rows = cursor.fetchall()
+        sensors = [row[0] for row in sensors_rows]
+
+        # Estatísticas
+        cursor.execute("SELECT COUNT(1) FROM sensor_readings")
+        total_readings = cursor.fetchone()[0] or 0
+
+        cursor.execute("SELECT COUNT(1) FROM sensor_readings WHERE timestamp >= datetime('now','-1 day')")
+        readings_24h = cursor.fetchone()[0] or 0
+
+        cursor.execute("""
+            SELECT id, timestamp, sensor_name, temperature, pressure, velocity, sensor_type, mode
+            FROM sensor_readings
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """)
+        last_row = cursor.fetchone()
+        last_reading = None
+        if last_row:
+            last_reading = {
+                'id': last_row[0],
+                'timestamp': last_row[1],
+                'sensor_name': last_row[2],
+                'temperature': last_row[3],
+                'pressure': last_row[4],
+                'velocity': last_row[5],
+                'sensor_type': last_row[6],
+                'mode': last_row[7],
+            }
+
+        conn.close()
+
+        stats = {
+            'total_readings': total_readings,
+            'readings_24h': readings_24h,
+            'last_reading': last_reading
+        }
+
+        return render_template('index.html', sensors=sensors, stats=stats)
+    except Exception:
+        # Em caso de erro, ainda renderiza a página
+        return render_template('index.html', sensors=[], stats={})
 
 @app.route('/control')
 def control():
@@ -40,6 +87,180 @@ def api_sensors():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/readings')
+def api_readings():
+    """Lista leituras com filtros e paginação fixa de 50 por página."""
+    try:
+        sensor = request.args.get('sensor')
+        start = request.args.get('start')  # ISO datetime
+        end = request.args.get('end')      # ISO datetime
+        page = max(int(request.args.get('page', 1)), 1)
+        page_size = 50
+        offset = (page - 1) * page_size
+
+        where = []
+        params = []
+        if sensor:
+            where.append("sensor_name = ?")
+            params.append(sensor)
+        if start:
+            where.append("timestamp >= ?")
+            params.append(start)
+        if end:
+            where.append("timestamp <= ?")
+            params.append(end)
+        where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+
+        # total
+        cursor.execute(f"SELECT COUNT(1) FROM sensor_readings {where_sql}", params)
+        total = cursor.fetchone()[0] or 0
+
+        # page items
+        cursor.execute(
+            f"""
+            SELECT id, timestamp, sensor_name, temperature, pressure, velocity, sensor_type, mode
+            FROM sensor_readings
+            {where_sql}
+            ORDER BY timestamp DESC
+            LIMIT ? OFFSET ?
+            """,
+            params + [page_size, offset]
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        items = []
+        for r in rows:
+            items.append({
+                'id': r[0],
+                'timestamp': r[1],
+                'sensor_name': r[2],
+                'temperature': r[3],
+                'pressure': r[4],
+                'velocity': r[5],
+                'sensor_type': r[6],
+                'mode': r[7],
+            })
+
+        total_pages = (total + page_size - 1) // page_size
+        return jsonify({
+            'items': items,
+            'page': page,
+            'page_size': page_size,
+            'total': total,
+            'total_pages': total_pages,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/readings/export')
+def api_readings_export():
+    """Exporta leituras em CSV com os mesmos filtros da listagem."""
+    try:
+        sensor = request.args.get('sensor')
+        start = request.args.get('start')
+        end = request.args.get('end')
+
+        where = []
+        params = []
+        if sensor:
+            where.append("sensor_name = ?")
+            params.append(sensor)
+        if start:
+            where.append("timestamp >= ?")
+            params.append(start)
+        if end:
+            where.append("timestamp <= ?")
+            params.append(end)
+        where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""
+            SELECT timestamp, sensor_name, temperature, pressure, velocity, sensor_type, mode
+            FROM sensor_readings
+            {where_sql}
+            ORDER BY timestamp DESC
+            """,
+            params
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        # Monta CSV
+        lines = ["timestamp,sensor,temperature,pressure,velocity,type,mode"]
+        for r in rows:
+            line = ",".join([
+                str(r[0] or ''), str(r[1] or ''),
+                str(r[2] if r[2] is not None else ''),
+                str(r[3] if r[3] is not None else ''),
+                str(r[4] if r[4] is not None else ''),
+                str(r[5] or ''), str(r[6] or ''),
+            ])
+            lines.append(line)
+        csv_data = "\n".join(lines)
+
+        return Response(
+            csv_data,
+            mimetype='text/csv',
+            headers={'Content-Disposition': 'attachment; filename="readings.csv"'}
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/stats')
+def api_stats():
+    """Estatísticas para cards da home."""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT COUNT(1) FROM sensor_readings")
+        total_readings = cursor.fetchone()[0] or 0
+
+        cursor.execute("SELECT COUNT(1) FROM sensor_readings WHERE timestamp >= datetime('now','-1 day')")
+        readings_24h = cursor.fetchone()[0] or 0
+
+        cursor.execute("SELECT DISTINCT sensor_name FROM sensor_readings")
+        sensors = [r[0] for r in cursor.fetchall()]
+
+        cursor.execute(
+            """
+            SELECT id, timestamp, sensor_name, temperature, pressure, velocity, sensor_type, mode
+            FROM sensor_readings
+            ORDER BY timestamp DESC
+            LIMIT 1
+            """
+        )
+        last_row = cursor.fetchone()
+        last_reading = None
+        if last_row:
+            last_reading = {
+                'id': last_row[0],
+                'timestamp': last_row[1],
+                'sensor_name': last_row[2],
+                'temperature': last_row[3],
+                'pressure': last_row[4],
+                'velocity': last_row[5],
+                'sensor_type': last_row[6],
+                'mode': last_row[7],
+            }
+
+        conn.close()
+
+        return jsonify({
+            'total_readings': total_readings,
+            'readings_24h': readings_24h,
+            'last_reading': last_reading,
+            'sensors': sensors,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # ============= EVENTOS WEBSOCKET =============
 
 @socketio.on('connect', namespace='/web')
@@ -47,6 +268,11 @@ def handle_web_connect():
     """Chamado quando um cliente web (navegador) se conecta."""
     print('Cliente web conectado')
     # Ao conectar um novo cliente, solicita ao dashboard um update com os dados mais recentes
+    socketio.emit('request_full_update', namespace='/dashboard')
+
+@socketio.on('request_initial_data', namespace='/web')
+def handle_request_initial_data():
+    """Solicitação explícita do cliente web para obter estado atual do dashboard."""
     socketio.emit('request_full_update', namespace='/dashboard')
 
 @socketio.on('disconnect', namespace='/web')

@@ -83,19 +83,36 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     manualButtons.forEach(button => {
-        button.addEventListener('mousedown', () => { // Mousedown para ação imediata
-            const target = button.id.replace('manual-', '').replace('-btn', '');
-            emitControlEvent('MANUAL_CONTROL', { target, state: true });
+        const id = button.id;
+        const isDrumFwd = id === 'manual-drum-fwd-btn';
+        const isDrumRev = id === 'manual-drum-rev-btn';
+
+        button.addEventListener('mousedown', () => { // Ação imediata
+            if (isDrumFwd) {
+                emitControlEvent('MANUAL_CONTROL', { target: 'tambor_dir', state: true });
+                emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: true });
+            } else if (isDrumRev) {
+                emitControlEvent('MANUAL_CONTROL', { target: 'tambor_dir', state: false });
+                emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: true });
+            } else {
+                const target = id.replace('manual-', '').replace('-btn', '');
+                emitControlEvent('MANUAL_CONTROL', { target, state: true });
+            }
         });
-        button.addEventListener('mouseup', () => { // Mouseup para parar
-            const target = button.id.replace('manual-', '').replace('-btn', '');
-            emitControlEvent('MANUAL_CONTROL', { target, state: false });
-        });
-        // Prevenir comportamento de "arrastar" que pode atrapalhar o mouseup
-        button.addEventListener('mouseleave', () => {
-             const target = button.id.replace('manual-', '').replace('-btn', '');
-            emitControlEvent('MANUAL_CONTROL', { target, state: false });
-        });
+
+        const stopDrum = () => {
+            if (isDrumFwd || isDrumRev) {
+                // Para o pulso do tambor
+                emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: false });
+            } else {
+                const target = id.replace('manual-', '').replace('-btn', '');
+                emitControlEvent('MANUAL_CONTROL', { target, state: false });
+            }
+        };
+
+        button.addEventListener('mouseup', stopDrum);
+        button.addEventListener('mouseleave', stopDrum);
+        button.addEventListener('touchend', stopDrum);
     });
 
     // Funções auxiliares da UI

@@ -166,9 +166,22 @@ def load_settings():
             return json.load(f)
     else: # Valores padrão se o arquivo não existir
         return {
-            "system_mode": 0, "heating_on": False,
-            "temp_min": 300, "temp_max": 400,
-            "resistencia_timer": 10, "rosca_on_timer": 5, "rosca_off_timer": 10
+            # Modo e aquecimento
+            "system_mode": 0,              # 0=auto, 1=manual
+            "heating_status": 0,           # 0=desligado, 1=ligado
+            # Setpoints de temperatura (mín/max)
+            "temp_forno_min": 300, "temp_forno_max": 400,
+            "temp_torre1_min": 80,  "temp_torre1_max": 200,
+            "temp_torre2_min": 80,  "temp_torre2_max": 220,
+            "temp_torre3_min": 80,  "temp_torre3_max": 240,
+            "temp_tanque_min": 50,  "temp_tanque_max": 150,
+            "temp_gases_min": 50,   "temp_gases_max": 300,
+            # Pressão de linha
+            "pressao_linha_min": 0.5, "pressao_linha_max": 3.0,
+            # Tempos (segundos)
+            "tempo_acionamento_resistencia": 10,
+            "tempo_acionamento_rosca": 5,
+            "tempo_pausa_rosca": 10,
         }
 
 # ============= 5) FLAGS e SAÍDA LIMPA =============
@@ -320,7 +333,9 @@ def apply_actuator_state():
         GPIO.output(PIN_VENTILADOR, state['actuators']['ventilador'])
         GPIO.output(PIN_RESISTENCIA, state['actuators']['resistencia'])
         GPIO.output(PIN_MOTOR_ROSCA, state['actuators']['motor_rosca'])
-        # ... etc para outros atuadores
+        # Tambor: DIR define direção, PUL é o pulso/enable
+        GPIO.output(PIN_TAMBOR_DIR, state['actuators'].get('tambor_dir', False))
+        GPIO.output(PIN_TAMBOR_PUL, state['actuators'].get('tambor_pul', False))
     else:
         # Apenas imprime o estado em modo de simulação se houver mudança
         pass # print(f"SIMUL: {state['actuators']}")
@@ -331,22 +346,29 @@ def handle_automatic_mode():
     settings = state['settings']
     values = state['values']
     
-    if not settings.get('heating_on', False) or "Temp Forno" not in values:
+    if settings.get('heating_status', 0) != 1 or "Temp Forno" not in values:
         state['actuators']['ventilador'] = False
         state['actuators']['resistencia'] = False
         state['actuators']['motor_rosca'] = False
         return
 
     temp_forno = values["Temp Forno"]
-    temp_min = settings.get("temp_min", 300)
-    temp_max = settings.get("temp_max", 400)
+    temp_min = settings.get("temp_forno_min", 300)
+    temp_max = settings.get("temp_forno_max", 400)
 
     if temp_forno < temp_min:
         state['actuators']['ventilador'] = True
-        # Lógica de ciclo para resistência e rosca
-        # (Implementação simplificada)
-        state['actuators']['resistencia'] = True 
-        state['actuators']['motor_rosca'] = True
+        # Lógica simplificada de ciclo para resistência e rosca
+        state['actuators']['resistencia'] = True
+        # Ciclo da rosca baseado nos tempos
+        now = time.time()
+        on_t = max(1, int(settings.get('tempo_acionamento_rosca', 5)))
+        off_t = max(1, int(settings.get('tempo_pausa_rosca', 10)))
+        cycle = on_t + off_t
+        if state['timers']['rosca_cycle_start'] is None:
+            state['timers']['rosca_cycle_start'] = now
+        elapsed = (now - state['timers']['rosca_cycle_start']) % cycle
+        state['actuators']['motor_rosca'] = (elapsed < on_t)
     elif temp_forno > temp_max:
         state['actuators']['ventilador'] = False
         state['actuators']['resistencia'] = False
@@ -388,10 +410,8 @@ def compute_values():
     }
     state['values'] = values # Atualiza o estado global
 
-    # Salvar no banco de dados
-    # (Opcional, pode ser feito em um processo separado)
-    # for name, value in values.items():
-    #     log_sensor_reading(...)
+    # Salvar no banco de dados (opcional)
+    # for name, value in values.items(): pass
 
 # ============= 8) DESENHO =============
 def draw_centered_text(img, text, center_xy, font_scale, thickness, color=TEXT_COLOR):

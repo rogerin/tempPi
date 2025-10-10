@@ -114,6 +114,9 @@ def handle_command(data):
             target = payload.get('target')
             if target in state['actuators']:
                 state['actuators'][target] = bool(payload.get('state'))
+                print(f"MANUAL: {target} = {payload.get('state')}")
+            else:
+                print(f"ERRO: Target '{target}' não encontrado em actuators!")
 
 @sio.on('request_full_update', namespace='/dashboard')
 def send_full_update():
@@ -217,6 +220,7 @@ if USE_RPI:
             GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
         _rpi_ready = True
         print("✅ GPIOs de saída configurados com sucesso.")
+        print(f"🔧 GPIOs configurados: {output_pins} - Todos iniciando em LOW")
     except ImportError as e:
         print("\n💥 [ERRO CRÍTICO] Biblioteca RPi.GPIO não encontrada!")
         print("🔧 SOLUÇÃO:")
@@ -449,6 +453,9 @@ def main():
     global state, STOP
     init_database()
     state['settings'] = load_settings()
+    
+    print(f"🚀 Estado inicial dos atuadores: {state['actuators']}")
+    print(f"🔧 Modo do sistema: {'Manual' if state['settings'].get('system_mode', 0) == 1 else 'Automático'}")
 
     if USE_RPI and not _hardware_init_success:
         print("Programa não pode iniciar devido a erros de hardware.")

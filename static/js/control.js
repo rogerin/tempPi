@@ -163,8 +163,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 emitControlEvent('MANUAL_CONTROL', { target: 'tambor_dir', state: false });
                 emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: true });
             } else {
-                const target = id.replace('manual-', '').replace('-btn', '');
-                emitControlEvent('MANUAL_CONTROL', { target, state: true });
+                // CORREÇÃO: Mapear IDs para nomes corretos dos atuadores
+                const targetMap = {
+                    'manual-fan-btn': 'ventilador',
+                    'manual-screw-btn': 'motor_rosca'
+                };
+                const target = targetMap[id];
+                if (target) {
+                    emitControlEvent('MANUAL_CONTROL', { target, state: true });
+                }
             }
         });
 
@@ -173,8 +180,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Para o pulso do tambor
                 emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: false });
             } else {
-                const target = id.replace('manual-', '').replace('-btn', '');
-                emitControlEvent('MANUAL_CONTROL', { target, state: false });
+                // CORREÇÃO: Mapear IDs para nomes corretos dos atuadores
+                const targetMap = {
+                    'manual-fan-btn': 'ventilador',
+                    'manual-screw-btn': 'motor_rosca'
+                };
+                const target = targetMap[id];
+                if (target) {
+                    emitControlEvent('MANUAL_CONTROL', { target, state: false });
+                }
             }
         };
 

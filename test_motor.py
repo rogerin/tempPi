@@ -21,9 +21,10 @@ except ImportError:
     USE_RPI = False
     print("⚠️  RPi.GPIO não disponível - Modo SIMULAÇÃO")
 
-# Configuração dos pinos
-PIN_DIR = 13  # GPIO13 - Direção do motor
-PIN_PUL = 19  # GPIO19 - Pulsos do motor
+# Configuração dos pinos (conexão física real)
+PIN_DIR = 13  # GPIO13 - Direção (DIR+)
+PIN_PUL = 19  # GPIO19 - Pulsos (PUL+)
+# ENA+ e ENA- fixos no GND (motor sempre habilitado)
 
 def setup_gpio():
     """Configura os pinos GPIO."""
@@ -36,19 +37,23 @@ def setup_gpio():
     GPIO.setup(PIN_DIR, GPIO.OUT)
     GPIO.setup(PIN_PUL, GPIO.OUT)
     
-    # Inicializar em LOW
-    GPIO.output(PIN_DIR, GPIO.LOW)
-    GPIO.output(PIN_PUL, GPIO.LOW)
+    # Inicializar (baseado no Arduino funcional)
+    # Sem ENABLE - motor sempre habilitado (ENA no GND)
+    GPIO.output(PIN_DIR, GPIO.HIGH)  # Direção padrão (CCW)
+    GPIO.output(PIN_PUL, GPIO.HIGH)  # Pulso inicia em HIGH (borda de descida)
     
     print(f"✅ GPIOs configurados:")
     print(f"   - PIN_DIR (GPIO{PIN_DIR}): Direção")
     print(f"   - PIN_PUL (GPIO{PIN_PUL}): Pulsos")
+    print(f"   ⚠️  ENABLE fixo no GND (motor sempre habilitado)")
 
 def cleanup_gpio():
     """Limpa os GPIOs."""
     if USE_RPI:
+        # Sem ENABLE para desabilitar - motor sempre habilitado
         GPIO.cleanup()
         print("🧹 GPIOs limpos")
+        print("⚠️  Motor continua habilitado (ENA fixo no GND)")
 
 def rotate_motor(direction='forward', steps=200, speed=500):
     """
@@ -59,13 +64,14 @@ def rotate_motor(direction='forward', steps=200, speed=500):
         steps: Número de passos (pulsos)
         speed: Velocidade em Hz (pulsos por segundo)
     """
-    # Configurar direção
+    # Configurar direção (baseado no Arduino: HIGH=CCW, LOW=CW)
     if USE_RPI:
-        dir_value = GPIO.HIGH if direction == 'forward' else GPIO.LOW
+        # HIGH = CCW (anti-horário), LOW = CW (horário)
+        dir_value = GPIO.LOW if direction == 'forward' else GPIO.HIGH
     else:
-        dir_value = 1 if direction == 'forward' else 0  # Simulação
+        dir_value = 0 if direction == 'forward' else 1  # Simulação
     
-    dir_name = "AVANÇO (→)" if direction == 'forward' else "RETORNO (←)"
+    dir_name = "CW (horário)" if direction == 'forward' else "CCW (anti-horário)"
     
     print(f"\n{'='*60}")
     print(f"🔧 GIRANDO MOTOR - {dir_name}")
@@ -81,13 +87,13 @@ def rotate_motor(direction='forward', steps=200, speed=500):
         GPIO.output(PIN_DIR, dir_value)
         time.sleep(0.001)  # Pequeno delay para estabilizar
         
-        # Gerar pulsos
+        # Gerar pulsos (similar ao Arduino - borda de descida)
         delay = 1.0 / (speed * 2)  # Tempo entre HIGH e LOW
         
         for i in range(steps):
-            GPIO.output(PIN_PUL, GPIO.HIGH)
+            GPIO.output(PIN_PUL, GPIO.LOW)   # Borda de descida
             time.sleep(delay)
-            GPIO.output(PIN_PUL, GPIO.LOW)
+            GPIO.output(PIN_PUL, GPIO.HIGH)  # Borda de subida
             time.sleep(delay)
             
             # Mostrar progresso a cada 10%

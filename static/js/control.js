@@ -56,6 +56,15 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
+        // Atualizar velocidade tambor
+        if (state.settings.velocidade_tambor && velocidadeTamborSlider) {
+            velocidadeTamborSlider.value = state.settings.velocidade_tambor;
+            const hz = state.settings.velocidade_tambor;
+            const rpm = Math.round(hz * 0.3);
+            velocidadeTamborDisplay.textContent = `${hz} Hz`;
+            velocidadeTamborRpm.textContent = `${rpm} RPM`;
+        }
+
         // Atualizar modo de operação
         const currentMode = state.settings['system_mode'] || 0;
         const radio = document.querySelector(`input[name="system_mode"][value="${currentMode}"]`);
@@ -187,6 +196,23 @@ document.addEventListener('DOMContentLoaded', function() {
         const newStatus = heatingBtn.dataset.status == '1' ? 0 : 1;
         emitControlEvent('SET_SETTING', { name: 'heating_status', value: newStatus });
     });
+
+    // Controle de velocidade do tambor
+    const velocidadeTamborSlider = document.getElementById('velocidade_tambor');
+    const velocidadeTamborDisplay = document.getElementById('velocidade_tambor_display');
+    const velocidadeTamborRpm = document.getElementById('velocidade_tambor_rpm');
+
+    if (velocidadeTamborSlider) {
+        velocidadeTamborSlider.addEventListener('input', (e) => {
+            const hz = parseInt(e.target.value);
+            const rpm = Math.round(hz * 0.3); // 200 passos/volta
+            velocidadeTamborDisplay.textContent = `${hz} Hz`;
+            velocidadeTamborRpm.textContent = `${rpm} RPM`;
+            
+            // Atualizar no backend
+            emitControlEvent('SET_SETTING', { name: 'velocidade_tambor', value: hz });
+        });
+    }
 
     manualButtons.forEach(button => {
         const id = button.id;

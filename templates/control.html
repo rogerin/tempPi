@@ -205,6 +205,22 @@
                         <input type="number" class="form-control" id="pressao_linha_max" placeholder="Max">
                     </div>
                     <hr>
+                    <h6 class="mb-2">Velocidade Tambor</h6>
+                    <div class="mb-3">
+                        <label for="velocidade_tambor" class="form-label">
+                            <i class="fas fa-tachometer-alt"></i> Velocidade Tambor
+                        </label>
+                        <div class="input-group">
+                            <input type="range" class="form-range" id="velocidade_tambor" 
+                                   min="100" max="2000" step="100" value="1000">
+                            <span class="input-group-text" id="velocidade_tambor_display">1000 Hz</span>
+                        </div>
+                        <small class="text-muted">
+                            <span id="velocidade_tambor_rpm">300 RPM</span> 
+                            | 100-2000 Hz
+                        </small>
+                    </div>
+                    <hr>
                     <h6 class="mb-2">Tempo (segundos)</h6>
                     <div class="input-group mb-3">
                         <span class="input-group-text" style="width: 180px;">Acionamento Resistência</span>

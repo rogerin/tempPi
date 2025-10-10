@@ -79,7 +79,10 @@ OUTLINE_THICKNESS = 3
 
 # Estado global do sistema
 state = {
-    'settings': {}, 'values': {},
+    'settings': {
+        'velocidade_tambor': 1000,  # Hz (pulsos por segundo)
+    }, 
+    'values': {},
     'actuators': {
         'ventilador': False, 'resistencia': False, 'motor_rosca': False,
         'tambor_dir': False, 'tambor_pul': False
@@ -186,7 +189,75 @@ def load_settings():
             "tempo_acionamento_resistencia": 10,
             "tempo_acionamento_rosca": 5,
             "tempo_pausa_rosca": 10,
+            # Velocidade tambor (Hz)
+            "velocidade_tambor": 1000,
         }
+
+def validate_sensors():
+    """
+    Valida se os sensores estão conectados e funcionando.
+    Retorna True se pelo menos um sensor está funcionando.
+    """
+    global _sensor_status, _sensors_validated
+    
+    if not (USE_RPI and _rpi_ready):
+        print("⚠️  Modo simulação - sensores não validados")
+        _sensors_validated = False
+        return False
+    
+    print("\n" + "="*70)
+    print("🔍 VALIDANDO SENSORES")
+    print("="*70)
+    
+    working_sensors = 0
+    failed_sensors = []
+    
+    # Testar cada sensor (3 tentativas cada)
+    sensors_to_test = [
+        ('Temp Torre 1', lambda: read_max6675(thermocouple_torre1)),
+        ('Temp Torre 2', lambda: read_max6675(thermocouple_torre2)),
+        ('Temp Torre 3', lambda: read_max6675(thermocouple_torre3)),
+        ('Temp Tanque', lambda: read_max6675(thermocouple_tanque)),
+        ('Temp Gases', lambda: read_max6675(thermocouple_gases)),
+        ('Temp Forno', lambda: read_max6675(thermocouple_forno)),
+    ]
+    
+    for sensor_name, read_func in sensors_to_test:
+        success = False
+        for attempt in range(3):
+            try:
+                value = read_func()
+                # Validar se é um valor real (não None, não NaN, dentro de limites)
+                if value is not None and not math.isnan(value) and -50 < value < 1500:
+                    _sensor_status[sensor_name] = True
+                    working_sensors += 1
+                    success = True
+                    print(f"  ✅ {sensor_name}: {value:.1f}°C - OK")
+                    break
+            except Exception as e:
+                if attempt == 2:  # Última tentativa
+                    print(f"  ❌ {sensor_name}: FALHA - {e}")
+                    failed_sensors.append(sensor_name)
+            time.sleep(0.1)
+        
+        if not success:
+            _sensor_status[sensor_name] = False
+    
+    print("="*70)
+    print(f"📊 Resultado: {working_sensors}/{len(sensors_to_test)} sensores funcionando")
+    
+    if working_sensors == 0:
+        print("❌ ERRO CRÍTICO: Nenhum sensor funcionando!")
+        _sensors_validated = False
+        return False
+    elif failed_sensors:
+        print(f"⚠️  AVISO: {len(failed_sensors)} sensor(es) com falha")
+        _sensors_validated = True
+        return True
+    else:
+        print("✅ TODOS OS SENSORES FUNCIONANDO PERFEITAMENTE!")
+        _sensors_validated = True
+        return True
 
 # ============= 5) FLAGS e SAÍDA LIMPA =============
 STOP  = False
@@ -197,6 +268,20 @@ signal.signal(signal.SIGINT, _sigint_handler)
 
 # ============= 6) RPi opcional (fallback) =============
 _rpi_ready = False
+_hardware_init_success = False
+_sensors_validated = False
+
+# Estado de cada sensor
+_sensor_status = {
+    'Temp Torre 1': False,
+    'Temp Torre 2': False,
+    'Temp Torre 3': False,
+    'Temp Tanque': False,
+    'Temp Gases': False,
+    'Temp Forno': False,
+    'Pressão 1': False,
+    'Pressão 2': False,
+}
 thermo_sensors = {}
 _hardware_init_success = True
 
@@ -350,6 +435,39 @@ def apply_actuator_state():
         sim_state = {k: ('LOW' if v else 'HIGH') for k, v in state['actuators'].items()}
         print(f"SIMUL: {state['actuators']} → GPIO = {sim_state}")
 
+def rotate_drum(direction, duration_seconds):
+    """
+    Gira o tambor rotativo com velocidade controlada.
+    
+    Args:
+        direction: True = forward (CW), False = reverse (CCW)
+        duration_seconds: Tempo de rotação em segundos
+    """
+    global state
+    
+    if not (USE_RPI and _rpi_ready):
+        print(f"SIMUL: Girando tambor {'FORWARD' if direction else 'REVERSE'} por {duration_seconds}s")
+        return
+    
+    velocidade = state['settings'].get('velocidade_tambor', 1000)  # Hz
+    steps = int(velocidade * duration_seconds)  # Total de passos
+    delay = 1.0 / (velocidade * 2)  # Tempo entre HIGH e LOW
+    
+    print(f"🔧 Girando tambor: {velocidade} Hz, {steps} passos, {duration_seconds}s")
+    
+    # Definir direção
+    GPIO.output(PIN_TAMBOR_DIR, direction)
+    time.sleep(0.001)
+    
+    # Gerar pulsos
+    for i in range(steps):
+        GPIO.output(PIN_TAMBOR_PUL, GPIO.LOW)
+        time.sleep(delay)
+        GPIO.output(PIN_TAMBOR_PUL, GPIO.HIGH)
+        time.sleep(delay)
+    
+    print(f"✅ Tambor girado: {steps} passos em {direction}")
+
 def handle_automatic_mode():
     """Gerencia a lógica de controle no modo automático."""
     global state
@@ -409,38 +527,133 @@ def read_temp(label, base_c, amp):
 def compute_values():
     """Computa valores dos sensores, atualiza o estado global e salva no banco."""
     global state
-    mode = "rpi" if USE_RPI else "simulation"
     
-    # Valores simulados como base
-    base_values = {
-        "Temp Forno": 350.0, "Velocidade": 600.0, "Temp Tanque": 120.0,
-        "Temp Saída Gases": 300.0, "Pressão Gases": 2.0, "Torre Nível 1": 110.0,
-        "Torre Nível 2": 140.0, "Torre Nível 3": 180.0,
-    }
-    noise_amp = 50.0
+    if USE_RPI and _rpi_ready and _sensors_validated:
+        # ===== MODO RASPBERRY PI - LEITURA REAL =====
+        values = {}
+        
+        # Apenas ler sensores validados
+        if _sensor_status.get('Temp Torre 1', False):
+            try:
+                temp = read_max6675(thermocouple_torre1)
+                if temp is not None and not math.isnan(temp) and -50 < temp < 1500:
+                    values["Torre Nível 1"] = round(temp, 1)
+                else:
+                    print(f"⚠️  Temp Torre 1: Leitura inválida ({temp})")
+            except Exception as e:
+                print(f"❌ Erro ao ler Temp Torre 1: {e}")
+        
+        if _sensor_status.get('Temp Torre 2', False):
+            try:
+                temp = read_max6675(thermocouple_torre2)
+                if temp is not None and not math.isnan(temp) and -50 < temp < 1500:
+                    values["Torre Nível 2"] = round(temp, 1)
+                else:
+                    print(f"⚠️  Temp Torre 2: Leitura inválida ({temp})")
+            except Exception as e:
+                print(f"❌ Erro ao ler Temp Torre 2: {e}")
+        
+        if _sensor_status.get('Temp Torre 3', False):
+            try:
+                temp = read_max6675(thermocouple_torre3)
+                if temp is not None and not math.isnan(temp) and -50 < temp < 1500:
+                    values["Torre Nível 3"] = round(temp, 1)
+                else:
+                    print(f"⚠️  Temp Torre 3: Leitura inválida ({temp})")
+            except Exception as e:
+                print(f"❌ Erro ao ler Temp Torre 3: {e}")
+        
+        if _sensor_status.get('Temp Tanque', False):
+            try:
+                temp = read_max6675(thermocouple_tanque)
+                if temp is not None and not math.isnan(temp) and -50 < temp < 1500:
+                    values["Temp Tanque"] = round(temp, 1)
+                else:
+                    print(f"⚠️  Temp Tanque: Leitura inválida ({temp})")
+            except Exception as e:
+                print(f"❌ Erro ao ler Temp Tanque: {e}")
+        
+        if _sensor_status.get('Temp Gases', False):
+            try:
+                temp = read_max6675(thermocouple_gases)
+                if temp is not None and not math.isnan(temp) and -50 < temp < 1500:
+                    values["Temp Saída Gases"] = round(temp, 1)
+                else:
+                    print(f"⚠️  Temp Gases: Leitura inválida ({temp})")
+            except Exception as e:
+                print(f"❌ Erro ao ler Temp Gases: {e}")
+        
+        if _sensor_status.get('Temp Forno', False):
+            try:
+                temp = read_max6675(thermocouple_forno)
+                if temp is not None and not math.isnan(temp) and -50 < temp < 1500:
+                    values["Temp Forno"] = round(temp, 1)
+                else:
+                    print(f"⚠️  Temp Forno: Leitura inválida ({temp})")
+            except Exception as e:
+                print(f"❌ Erro ao ler Temp Forno: {e}")
+        
+        # Adicionar valores simulados para sensores não disponíveis
+        if "Velocidade" not in values:
+            values["Velocidade"] = max(0, int(round(600.0 + noise(600.0, 50.0*5.0))))
+        if "Pressão Gases" not in values:
+            values["Pressão Gases"] = round(max(0.0, 2.0 + noise(2.0, 0.5)), 2)
+        
+        state['values'] = values
+        
+    else:
+        # ===== MODO SIMULAÇÃO - DADOS ALEATÓRIOS =====
+        if not USE_RPI:
+            # Apenas em modo simulação (não no Raspberry Pi)
+            base_values = {
+                "Temp Forno": 350.0, "Velocidade": 600.0, "Temp Tanque": 120.0,
+                "Temp Saída Gases": 300.0, "Pressão Gases": 2.0, "Torre Nível 1": 110.0,
+                "Torre Nível 2": 140.0, "Torre Nível 3": 180.0,
+            }
+            noise_amp = 50.0
 
-    # Ler valores (real ou simulação)
-    values = {
-        "Temp Forno": read_temp("Temp Forno", base_values["Temp Forno"], noise_amp),
-        "Velocidade": max(0, int(round(base_values["Velocidade"] + noise(base_values["Velocidade"], noise_amp*5.0)))),
-        "Temp Tanque": read_temp("Temp Tanque", base_values["Temp Tanque"], noise_amp),
-        "Temp Saída Gases": read_temp("Temp Saída Gases", base_values["Temp Saída Gases"], noise_amp),
-        "Pressão Gases": round(max(0.0, base_values["Pressão Gases"] + noise(base_values["Pressão Gases"], noise_amp/100.0)), 2),
-        "Torre Nível 1": read_temp("Torre Nível 1", base_values["Torre Nível 1"], noise_amp),
-        "Torre Nível 2": read_temp("Torre Nível 2", base_values["Torre Nível 2"], noise_amp),
-        "Torre Nível 3": read_temp("Torre Nível 3", base_values["Torre Nível 3"], noise_amp),
-    }
-    state['values'] = values # Atualiza o estado global
+            values = {
+                "Temp Forno": read_temp("Temp Forno", base_values["Temp Forno"], noise_amp),
+                "Velocidade": max(0, int(round(base_values["Velocidade"] + noise(base_values["Velocidade"], noise_amp*5.0)))),
+                "Temp Tanque": read_temp("Temp Tanque", base_values["Temp Tanque"], noise_amp),
+                "Temp Saída Gases": read_temp("Temp Saída Gases", base_values["Temp Saída Gases"], noise_amp),
+                "Pressão Gases": round(max(0.0, base_values["Pressão Gases"] + noise(base_values["Pressão Gases"], noise_amp/100.0)), 2),
+                "Torre Nível 1": read_temp("Torre Nível 1", base_values["Torre Nível 1"], noise_amp),
+                "Torre Nível 2": read_temp("Torre Nível 2", base_values["Torre Nível 2"], noise_amp),
+                "Torre Nível 3": read_temp("Torre Nível 3", base_values["Torre Nível 3"], noise_amp),
+            }
+            state['values'] = values
+        else:
+            # Raspberry Pi sem sensores validados - não gerar dados
+            print("⚠️  Sensores não validados - sem dados disponíveis")
+            state['values'] = {}
 
     # Salvar no banco de dados periodicamente (a cada 5 segundos)
     if state.get('last_save_time', 0) == 0 or (time.time() - state.get('last_save_time', 0)) > 5:
-        for name, value in values.items():
-            # Validar valor antes de salvar
-            if value is None or (isinstance(value, float) and math.isnan(value)):
-                continue  # Pula sensor com dado inválido
-            
-            sensor_type = 'temperature' if 'Temp' in name or 'Torre' in name else ('pressure' if 'Pressão' in name else 'velocity')
-            log_sensor_reading(name, value, sensor_type, mode=mode)
+        # Apenas salvar se houver dados válidos
+        if USE_RPI and _sensors_validated:
+            for name, value in state['values'].items():
+                # Validar valor antes de salvar
+                if value is None or (isinstance(value, float) and math.isnan(value)):
+                    continue  # Pula sensor com dado inválido
+                
+                # Validar range
+                if 'Temp' in name and not (-50 < value < 1500):
+                    continue  # Temperatura fora do range válido
+                if 'Pressão' in name and not (0 < value < 100):
+                    continue  # Pressão fora do range válido
+                
+                sensor_type = 'temperature' if 'Temp' in name or 'Torre' in name else ('pressure' if 'Pressão' in name else 'velocity')
+                log_sensor_reading(name, value, sensor_type, mode='real')
+        elif not USE_RPI:
+            # Modo simulação - salvar dados simulados
+            for name, value in state['values'].items():
+                if value is None or (isinstance(value, float) and math.isnan(value)):
+                    continue
+                
+                sensor_type = 'temperature' if 'Temp' in name or 'Torre' in name else ('pressure' if 'Pressão' in name else 'velocity')
+                log_sensor_reading(name, value, sensor_type, mode='simulation')
+        
         state['last_save_time'] = time.time()
 
 # ============= 8) DESENHO =============
@@ -525,10 +738,28 @@ def main():
     
     print(f"🚀 Estado inicial dos atuadores: {state['actuators']}")
     print(f"🔧 Modo do sistema: {'Manual' if state['settings'].get('system_mode', 0) == 1 else 'Automático'}")
-
-    if USE_RPI and not _hardware_init_success:
-        print("Programa não pode iniciar devido a erros de hardware.")
-        raise SystemExit()
+    
+    # Mostrar modo de operação
+    if USE_RPI:
+        print("\n" + "="*70)
+        print("🤖 MODO RASPBERRY PI - LEITURA REAL DOS SENSORES")
+        print("="*70)
+        
+        if not _hardware_init_success:
+            print("❌ Hardware não inicializado corretamente!")
+            raise SystemExit()
+        
+        # Validar sensores
+        if not validate_sensors():
+            print("❌ Sensores não validados - impossível continuar!")
+            raise SystemExit()
+    else:
+        print("\n" + "="*70)
+        print("🎮 MODO SIMULAÇÃO - DADOS ALEATÓRIOS")
+        print("="*70)
+        print("⚠️  Este modo é apenas para desenvolvimento/teste")
+        print("⚠️  Use --use-rpi para modo produção com sensores reais")
+        print("="*70)
 
     try:
         sio.connect('http://localhost:3333', namespaces=['/dashboard'])

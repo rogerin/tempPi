@@ -336,9 +336,12 @@ def apply_actuator_state():
         # Tambor: DIR define direção, PUL é o pulso/enable
         GPIO.output(PIN_TAMBOR_DIR, state['actuators'].get('tambor_dir', False))
         GPIO.output(PIN_TAMBOR_PUL, state['actuators'].get('tambor_pul', False))
+        print(f"GPIO: VENT={state['actuators']['ventilador']}, RES={state['actuators']['resistencia']}, "
+              f"ROSCA={state['actuators']['motor_rosca']}, DIR={state['actuators'].get('tambor_dir', False)}, "
+              f"PUL={state['actuators'].get('tambor_pul', False)}")
     else:
-        # Apenas imprime o estado em modo de simulação se houver mudança
-        pass # print(f"SIMUL: {state['actuators']}")
+        # Modo simulação - mostrar estado
+        print(f"SIMUL: {state['actuators']}")
 
 def handle_automatic_mode():
     """Gerencia a lógica de controle no modo automático."""

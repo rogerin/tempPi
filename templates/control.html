@@ -79,6 +79,14 @@
                 <!-- Visualização em Tempo Real -->
                 <h6 class="mb-3">Visualização em Tempo Real</h6>
                 <div class="row g-2">
+                    <div class="col-12">
+                        <div class="card bg-warning bg-opacity-10">
+                            <div class="card-body text-center py-2">
+                                <small class="text-muted">Temp Forno</small>
+                                <div class="h6 mb-0" id="display_temp_forno">- °C</div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="col-6">
                         <div class="card bg-light">
                             <div class="card-body text-center py-2">
@@ -124,9 +132,56 @@
         </div>
     </div>
 
-    <!-- Coluna de Ajustes de Pressão e Tempo -->
+    <!-- Coluna de Status e Ajustes -->
     <div class="col-lg-4 mb-4">
-        <div class="card h-100">
+        <!-- Status dos Atuadores -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6><i class="fas fa-toggle-on"></i> Status dos Atuadores</h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-fan me-2"></i>
+                            <small>Ventilador</small>
+                            <span class="badge ms-auto" id="status_ventilador">OFF</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-fire me-2"></i>
+                            <small>Resistência</small>
+                            <span class="badge ms-auto" id="status_resistencia">OFF</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-cogs me-2"></i>
+                            <small>Rosca</small>
+                            <span class="badge ms-auto" id="status_motor_rosca">OFF</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-sync me-2"></i>
+                            <small>Tambor</small>
+                            <span class="badge ms-auto" id="status_tambor">OFF</span>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-arrow-right me-2" id="tambor_direction_icon"></i>
+                            <small>Direção Tambor</small>
+                            <span class="badge ms-auto" id="status_tambor_dir">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ajustes de Pressão e Tempo -->
+        <div class="card">
             <div class="card-header">
                 <h5><i class="fas fa-tachometer-alt"></i> Ajustes de Pressão e Tempo</h5>
             </div>

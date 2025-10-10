@@ -63,11 +63,17 @@ document.addEventListener('DOMContentLoaded', function() {
         if (state.values) {
             updateTemperatureDisplays(state.values);
         }
+
+        // Atualizar status dos atuadores
+        if (state.actuators) {
+            updateActuatorStatus(state.actuators);
+        }
     }
 
     function updateTemperatureDisplays(values) {
         // Mapear nomes dos sensores para IDs dos displays
         const sensorMapping = {
+            'Temp Forno': 'display_temp_forno',
             'Torre Nível 1': 'display_temp_torre1',
             'Torre Nível 2': 'display_temp_torre2', 
             'Torre Nível 3': 'display_temp_torre3',
@@ -81,6 +87,45 @@ document.addEventListener('DOMContentLoaded', function() {
                 element.textContent = `${values[sensorName].toFixed(1)} °C`;
             }
         });
+    }
+
+    function updateActuatorStatus(actuators) {
+        const statusMap = {
+            'status_ventilador': actuators.ventilador,
+            'status_resistencia': actuators.resistencia,
+            'status_motor_rosca': actuators.motor_rosca,
+            'status_tambor': actuators.tambor_pul // Considera ligado se pulso ativo
+        };
+        
+        Object.entries(statusMap).forEach(([id, isActive]) => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = isActive ? 'ON' : 'OFF';
+                element.className = `badge ${isActive ? 'bg-success' : 'bg-secondary'}`;
+            }
+        });
+
+        // Atualizar direção do tambor
+        const dirIcon = document.getElementById('tambor_direction_icon');
+        const dirStatus = document.getElementById('status_tambor_dir');
+        
+        if (dirIcon && dirStatus) {
+            if (actuators.tambor_pul) {
+                if (actuators.tambor_dir) {
+                    dirIcon.className = 'fas fa-arrow-right me-2';
+                    dirStatus.textContent = 'AVANÇO';
+                    dirStatus.className = 'badge bg-primary';
+                } else {
+                    dirIcon.className = 'fas fa-arrow-left me-2';
+                    dirStatus.textContent = 'RETORNO';
+                    dirStatus.className = 'badge bg-warning';
+                }
+            } else {
+                dirIcon.className = 'fas fa-stop me-2';
+                dirStatus.textContent = 'PARADO';
+                dirStatus.className = 'badge bg-secondary';
+            }
+        }
     }
 
     function emitControlEvent(command, payload) {

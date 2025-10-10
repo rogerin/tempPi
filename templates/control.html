@@ -61,41 +61,65 @@
     <div class="col-lg-4 mb-4">
         <div class="card h-100">
             <div class="card-header">
-                <h5><i class="fas fa-thermometer-half"></i> Ajustes de Temperatura (°C)</h5>
+                <h5><i class="fas fa-thermometer-half"></i> Controle de Temperatura</h5>
             </div>
             <div class="card-body">
+                <!-- Ajustes do Forno (único com controle) -->
                 <form id="temp-settings-form">
+                    <h6 class="mb-3">Ajustes do Forno (°C)</h6>
                     <div class="input-group mb-3">
                         <span class="input-group-text" style="width: 150px;">Temp. Forno (Min/Max)</span>
                         <input type="number" class="form-control" id="temp_forno_min" placeholder="Min">
                         <input type="number" class="form-control" id="temp_forno_max" placeholder="Max">
                     </div>
-                    <div class="input-group mb-3">
-                        <span class="input-group-text" style="width: 150px;">Torre Nível 1 (Min/Max)</span>
-                        <input type="number" class="form-control" id="temp_torre1_min" placeholder="Min">
-                        <input type="number" class="form-control" id="temp_torre1_max" placeholder="Max">
-                    </div>
-                    <div class="input-group mb-3">
-                        <span class="input-group-text" style="width: 150px;">Torre Nível 2 (Min/Max)</span>
-                        <input type="number" class="form-control" id="temp_torre2_min" placeholder="Min">
-                        <input type="number" class="form-control" id="temp_torre2_max" placeholder="Max">
-                    </div>
-                    <div class="input-group mb-3">
-                        <span class="input-group-text" style="width: 150px;">Torre Nível 3 (Min/Max)</span>
-                        <input type="number" class="form-control" id="temp_torre3_min" placeholder="Min">
-                        <input type="number" class="form-control" id="temp_torre3_max" placeholder="Max">
-                    </div>
-                    <div class="input-group mb-3">
-                        <span class="input-group-text" style="width: 150px;">Temp. Tanque (Min/Max)</span>
-                        <input type="number" class="form-control" id="temp_tanque_min" placeholder="Min">
-                        <input type="number" class="form-control" id="temp_tanque_max" placeholder="Max">
-                    </div>
-                    <div class="input-group mb-3">
-                        <span class="input-group-text" style="width: 150px;">Saída Gases (Min/Max)</span>
-                        <input type="number" class="form-control" id="temp_gases_min" placeholder="Min">
-                        <input type="number" class="form-control" id="temp_gases_max" placeholder="Max">
-                    </div>
                 </form>
+                
+                <hr>
+                
+                <!-- Visualização em Tempo Real -->
+                <h6 class="mb-3">Visualização em Tempo Real</h6>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <div class="card bg-light">
+                            <div class="card-body text-center py-2">
+                                <small class="text-muted">Torre Nível 1</small>
+                                <div class="h6 mb-0" id="display_temp_torre1">- °C</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card bg-light">
+                            <div class="card-body text-center py-2">
+                                <small class="text-muted">Torre Nível 2</small>
+                                <div class="h6 mb-0" id="display_temp_torre2">- °C</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card bg-light">
+                            <div class="card-body text-center py-2">
+                                <small class="text-muted">Torre Nível 3</small>
+                                <div class="h6 mb-0" id="display_temp_torre3">- °C</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card bg-light">
+                            <div class="card-body text-center py-2">
+                                <small class="text-muted">Tanque</small>
+                                <div class="h6 mb-0" id="display_temp_tanque">- °C</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="card bg-light">
+                            <div class="card-body text-center py-2">
+                                <small class="text-muted">Saída Gases</small>
+                                <div class="h6 mb-0" id="display_temp_gases">- °C</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

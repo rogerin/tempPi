@@ -72,6 +72,11 @@ def control():
     """Página de controle do sistema."""
     return render_template('control.html')
 
+@app.route('/sensor/<sensor_name>')
+def sensor_detail(sensor_name):
+    """Página de detalhes de um sensor específico."""
+    return render_template('sensor_detail.html', sensor_name=sensor_name)
+
 @app.route('/api/sensors')
 def api_sensors():
     """Retorna uma lista única de nomes de sensores."""
@@ -258,6 +263,41 @@ def api_stats():
             'last_reading': last_reading,
             'sensors': sensors,
         })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/sensor/<sensor_name>/data')
+def api_sensor_data(sensor_name):
+    """Retorna dados históricos de um sensor específico."""
+    try:
+        hours = int(request.args.get('hours', 24))
+        start_time = f"datetime('now', '-{hours} hours')"
+        
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute(f"""
+            SELECT timestamp, temperature, pressure, velocity, sensor_type, mode
+            FROM sensor_readings
+            WHERE sensor_name = ? AND timestamp >= {start_time}
+            ORDER BY timestamp ASC
+        """, (sensor_name,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        data = []
+        for row in rows:
+            data.append({
+                'timestamp': row[0],
+                'temperature': row[1],
+                'pressure': row[2],
+                'velocity': row[3],
+                'sensor_type': row[4],
+                'mode': row[5]
+            })
+        
+        return jsonify(data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

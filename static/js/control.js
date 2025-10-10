@@ -58,6 +58,29 @@ document.addEventListener('DOMContentLoaded', function() {
             updateManualButton('manual-drum-fwd-btn', state.actuators.tambor_pul && state.actuators.tambor_dir);
             updateManualButton('manual-drum-rev-btn', state.actuators.tambor_pul && !state.actuators.tambor_dir);
         }
+
+        // Atualizar displays de temperatura em tempo real
+        if (state.values) {
+            updateTemperatureDisplays(state.values);
+        }
+    }
+
+    function updateTemperatureDisplays(values) {
+        // Mapear nomes dos sensores para IDs dos displays
+        const sensorMapping = {
+            'Torre Nível 1': 'display_temp_torre1',
+            'Torre Nível 2': 'display_temp_torre2', 
+            'Torre Nível 3': 'display_temp_torre3',
+            'Temp Tanque': 'display_temp_tanque',
+            'Temp Saída Gases': 'display_temp_gases'
+        };
+
+        Object.entries(sensorMapping).forEach(([sensorName, displayId]) => {
+            const element = document.getElementById(displayId);
+            if (element && values[sensorName] !== undefined) {
+                element.textContent = `${values[sensorName].toFixed(1)} °C`;
+            }
+        });
     }
 
     function emitControlEvent(command, payload) {

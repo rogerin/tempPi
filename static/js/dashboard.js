@@ -138,7 +138,9 @@ function renderReadingsTable(items) {
                 <td>${it.sensor_type || ''}</td>
                 <td>${it.mode || ''}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-secondary" disabled>Ver</button>
+                    <a href="/sensor/${encodeURIComponent(it.sensor_name)}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-eye"></i> Ver
+                    </a>
                 </td>
             </tr>`;
     });

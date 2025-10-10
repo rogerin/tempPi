@@ -170,7 +170,7 @@ def load_settings():
             "system_mode": 0,              # 0=auto, 1=manual
             "heating_status": 0,           # 0=desligado, 1=ligado
             # Setpoints de temperatura (mín/max)
-            "temp_forno_min": 300, "temp_forno_max": 400,
+            "temp_forno_min": 60, "temp_forno_max": 100,
             "temp_torre1_min": 80,  "temp_torre1_max": 200,
             "temp_torre2_min": 80,  "temp_torre2_max": 220,
             "temp_torre3_min": 80,  "temp_torre3_max": 240,
@@ -425,6 +425,10 @@ def compute_values():
     # Salvar no banco de dados periodicamente (a cada 5 segundos)
     if state.get('last_save_time', 0) == 0 or (time.time() - state.get('last_save_time', 0)) > 5:
         for name, value in values.items():
+            # Validar valor antes de salvar
+            if value is None or (isinstance(value, float) and math.isnan(value)):
+                continue  # Pula sensor com dado inválido
+            
             sensor_type = 'temperature' if 'Temp' in name or 'Torre' in name else ('pressure' if 'Pressão' in name else 'velocity')
             log_sensor_reading(name, value, sensor_type, mode=mode)
         state['last_save_time'] = time.time()

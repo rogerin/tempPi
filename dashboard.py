@@ -350,6 +350,8 @@ def handle_automatic_mode():
         state['actuators']['ventilador'] = False
         state['actuators']['resistencia'] = False
         state['actuators']['motor_rosca'] = False
+        state['timers']['resistencia_start_time'] = None
+        state['timers']['rosca_cycle_start'] = None
         return
 
     temp_forno = values["Temp Forno"]
@@ -358,21 +360,31 @@ def handle_automatic_mode():
 
     if temp_forno < temp_min:
         state['actuators']['ventilador'] = True
-        # Lógica simplificada de ciclo para resistência e rosca
-        state['actuators']['resistencia'] = True
-        # Ciclo da rosca baseado nos tempos
+        
+        # Timer resistência - liga por tempo determinado, depois desliga permanentemente
         now = time.time()
+        resistencia_duration = max(1, int(settings.get('tempo_acionamento_resistencia', 10)))
+        if state['timers']['resistencia_start_time'] is None:
+            state['timers']['resistencia_start_time'] = now
+        elapsed_resistencia = now - state['timers']['resistencia_start_time']
+        state['actuators']['resistencia'] = (elapsed_resistencia < resistencia_duration)
+        
+        # Ciclo rosca - alterna entre ligado/desligado
         on_t = max(1, int(settings.get('tempo_acionamento_rosca', 5)))
         off_t = max(1, int(settings.get('tempo_pausa_rosca', 10)))
         cycle = on_t + off_t
         if state['timers']['rosca_cycle_start'] is None:
             state['timers']['rosca_cycle_start'] = now
-        elapsed = (now - state['timers']['rosca_cycle_start']) % cycle
-        state['actuators']['motor_rosca'] = (elapsed < on_t)
+        elapsed_rosca = (now - state['timers']['rosca_cycle_start']) % cycle
+        state['actuators']['motor_rosca'] = (elapsed_rosca < on_t)
+        
     elif temp_forno > temp_max:
         state['actuators']['ventilador'] = False
         state['actuators']['resistencia'] = False
         state['actuators']['motor_rosca'] = False
+        # Resetar timers para próximo ciclo
+        state['timers']['resistencia_start_time'] = None
+        state['timers']['rosca_cycle_start'] = None
 
 def noise(val, amp): return random.uniform(-amp, amp)
 
@@ -410,8 +422,12 @@ def compute_values():
     }
     state['values'] = values # Atualiza o estado global
 
-    # Salvar no banco de dados (opcional)
-    # for name, value in values.items(): pass
+    # Salvar no banco de dados periodicamente (a cada 5 segundos)
+    if state.get('last_save_time', 0) == 0 or (time.time() - state.get('last_save_time', 0)) > 5:
+        for name, value in values.items():
+            sensor_type = 'temperature' if 'Temp' in name or 'Torre' in name else ('pressure' if 'Pressão' in name else 'velocity')
+            log_sensor_reading(name, value, sensor_type, mode=mode)
+        state['last_save_time'] = time.time()
 
 # ============= 8) DESENHO =============
 def draw_centered_text(img, text, center_xy, font_scale, thickness, color=TEXT_COLOR):

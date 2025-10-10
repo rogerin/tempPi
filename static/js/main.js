@@ -132,8 +132,8 @@ async function loadSensorsDropdown() {
             sensors.forEach(sensor => {
                 const li = document.createElement('li');
                 li.innerHTML = `
-                    <a class="dropdown-item" href="/sensor/${encodeURIComponent(sensor.sensor_name)}">
-                        <i class="fas fa-thermometer-half"></i> ${sensor.sensor_name}
+                    <a class="dropdown-item" href="/sensor/${encodeURIComponent(sensor)}">
+                        <i class="fas fa-thermometer-half"></i> ${sensor}
                     </a>
                 `;
                 dropdown.appendChild(li);

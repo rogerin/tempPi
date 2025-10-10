@@ -4,182 +4,19 @@
 let overviewChart = null;
 let averageTempChart = null;
 
-// Carregar gráfico de overview
-async function loadOverviewChart() {
-    try {
-        const sensors = await fetchAPI('sensors');
-        const ctx = document.getElementById('overview-chart');
-        
-        if (!ctx || sensors.length === 0) return;
-        
-        // Buscar dados dos primeiros 4 sensores para o overview
-        const datasets = [];
-        const colors = ['#dc3545', '#007bff', '#28a745', '#ffc107'];
-        
-        for (let i = 0; i < Math.min(4, sensors.length); i++) {
-            const sensorData = await fetchAPI(`chart/${encodeURIComponent(sensors[i])}?hours=24`);
-            
-            if (sensorData.length > 0) {
-                // Determinar qual valor usar baseado no tipo de sensor
-                let dataPoints = [];
-                let label = sensors[i];
-                
-                if (sensors[i].includes('Temp') || sensors[i].includes('Torre')) {
-                    dataPoints = sensorData.map(d => ({
-                        x: new Date(d.timestamp).getTime(),
-                        y: d.temperature
-                    })).filter(d => d.y !== null && !isNaN(d.x));
-                    label += ' (°C)';
-                } else if (sensors[i].includes('Pressão')) {
-                    dataPoints = sensorData.map(d => ({
-                        x: new Date(d.timestamp).getTime(),
-                        y: d.pressure
-                    })).filter(d => d.y !== null && !isNaN(d.x));
-                    label += ' (bar)';
-                } else if (sensors[i].includes('Velocidade')) {
-                    dataPoints = sensorData.map(d => ({
-                        x: new Date(d.timestamp).getTime(),
-                        y: d.velocity
-                    })).filter(d => d.y !== null && !isNaN(d.x));
-                    label += ' (rpm)';
-                }
-                
-                if (dataPoints.length > 0) {
-                    datasets.push({
-                        label: label,
-                        data: dataPoints,
-                        borderColor: colors[i],
-                        backgroundColor: colors[i] + '20',
-                        borderWidth: 2,
-                        fill: false,
-                        tension: 0.4
-                    });
-                }
-            }
-        }
-        
-        // Verificar se há dados para mostrar
-        if (datasets.length === 0) {
-            const canvas = document.getElementById('overview-chart');
-            if (canvas) {
-                const container = canvas.parentElement;
-                container.innerHTML = `
-                    <div class="alert alert-info text-center">
-                        <i class="fas fa-info-circle"></i>
-                        <h6>Aguardando dados dos sensores</h6>
-                        <p class="mb-0">
-                            <small>Execute o dashboard principal para começar a coletar dados.</small>
-                        </p>
-                        <div class="mt-2">
-                            <code>python3 dashboard.py --img assets/base.jpeg</code>
-                        </div>
-                    </div>
-                `;
-            }
-            return;
-        }
-        
-        // Destruir gráfico anterior se existir
-        if (overviewChart) {
-            overviewChart.destroy();
-        }
-        
-        // Criar novo gráfico
-        overviewChart = new Chart(ctx, {
-            type: 'line',
-            data: { datasets },
-            options: {
-                ...defaultChartOptions,
-                plugins: {
-                    ...defaultChartOptions.plugins,
-                    title: {
-                        display: true,
-                        text: 'Visão Geral dos Sensores - Últimas 24 Horas'
-                    }
-                }
-            }
-        });
-        
-    } catch (error) {
-        console.error('Erro ao carregar gráfico de overview:', error);
-        
-        // Mostrar mensagem de erro amigável
-        const canvas = document.getElementById('overview-chart');
-        if (canvas) {
-            const container = canvas.parentElement;
-            container.innerHTML = `
-                <div class="alert alert-warning text-center">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <h6>Gráfico temporariamente indisponível</h6>
-                    <p class="mb-0">
-                        <small>Execute o dashboard para gerar dados ou aguarde alguns minutos.</small>
-                    </p>
-                    <button class="btn btn-sm btn-outline-primary mt-2" onclick="loadOverviewChart()">
-                        <i class="fas fa-sync-alt"></i> Tentar novamente
-                    </button>
-                </div>
-            `;
-        }
-    }
-}
+// Desabilitado até os endpoints de gráfico existirem
+async function loadOverviewChart() { return; }
 
-// Carregar gráfico de média de temperatura
-async function loadAverageTempChart() {
-    try {
-        const ctx = document.getElementById('average-temp-chart');
-        if (!ctx) return;
-
-        const avgData = await fetchAPI('chart/average_temperature?hours=24');
-
-        if (avgData.length === 0) {
-            // Mensagem se não houver dados
-            return;
-        }
-
-        const dataPoints = avgData.map(d => ({
-            x: new Date(d.timestamp).getTime(),
-            y: d.temperature
-        }));
-
-        const dataset = {
-            label: 'Média de Temperatura (°C)',
-            data: dataPoints,
-            borderColor: '#ff6384',
-            backgroundColor: '#ff638420',
-            borderWidth: 2,
-            fill: true,
-            tension: 0.4
-        };
-
-        if (averageTempChart) {
-            averageTempChart.destroy();
-        }
-
-        averageTempChart = new Chart(ctx, {
-            type: 'line',
-            data: { datasets: [dataset] },
-            options: {
-                ...defaultChartOptions,
-                plugins: {
-                    ...defaultChartOptions.plugins,
-                    title: {
-                        display: true,
-                        text: 'Média de Temperatura - Últimas 24 Horas'
-                    }
-                }
-            }
-        });
-
-    } catch (error) {
-        console.error('Erro ao carregar gráfico de média de temperatura:', error);
-    }
-}
+// Desabilitado até os endpoints de gráfico existirem
+async function loadAverageTempChart() { return; }
 
 
 // Atualizar estatísticas em tempo real
 async function updateStats() {
     try {
-        const stats = await fetchAPI('stats');
+        const res = await fetch('/api/stats');
+        if (!res.ok) throw new Error('Falha ao buscar estatísticas');
+        const stats = await res.json();
         
         // Atualizar cards de estatísticas se existirem
         const elements = {

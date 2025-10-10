@@ -218,10 +218,10 @@ if USE_RPI:
         GPIO.setmode(GPIO.BCM)
         output_pins = [PIN_VENTILADOR, PIN_RESISTENCIA, PIN_MOTOR_ROSCA, PIN_TAMBOR_DIR, PIN_TAMBOR_PUL]
         for pin in output_pins:
-            GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
+            GPIO.setup(pin, GPIO.OUT, initial=GPIO.HIGH)  # Relés desligados ao iniciar
         _rpi_ready = True
         print("✅ GPIOs de saída configurados com sucesso.")
-        print(f"🔧 GPIOs configurados: {output_pins} - Todos iniciando em LOW")
+        print(f"🔧 GPIOs configurados: {output_pins} - Todos iniciando em HIGH (relés desligados)")
     except ImportError as e:
         print("\n💥 [ERRO CRÍTICO] Biblioteca RPi.GPIO não encontrada!")
         print("🔧 SOLUÇÃO:")
@@ -333,20 +333,22 @@ if USE_RPI:
 # ============= 7) LÓGICA DE CONTROLE E SIMULAÇÃO =============
 
 def apply_actuator_state():
-    """Aplica o estado dos atuadores aos GPIOs ou simulação."""
+    """Aplica o estado dos atuadores aos GPIOs (lógica invertida para relés)."""
     if USE_RPI and _rpi_ready:
-        GPIO.output(PIN_VENTILADOR, state['actuators']['ventilador'])
-        GPIO.output(PIN_RESISTENCIA, state['actuators']['resistencia'])
-        GPIO.output(PIN_MOTOR_ROSCA, state['actuators']['motor_rosca'])
-        # Tambor: DIR define direção, PUL é o pulso/enable
+        # Relés: HIGH=desligado, LOW=ligado (inverter estado)
+        GPIO.output(PIN_VENTILADOR, not state['actuators']['ventilador'])
+        GPIO.output(PIN_RESISTENCIA, not state['actuators']['resistencia'])
+        GPIO.output(PIN_MOTOR_ROSCA, not state['actuators']['motor_rosca'])
+        # Tambor: DIR define direção, PUL é o pulso/enable (manter lógica direta para driver)
         GPIO.output(PIN_TAMBOR_DIR, state['actuators'].get('tambor_dir', False))
         GPIO.output(PIN_TAMBOR_PUL, state['actuators'].get('tambor_pul', False))
-        print(f"GPIO: VENT={state['actuators']['ventilador']}, RES={state['actuators']['resistencia']}, "
-              f"ROSCA={state['actuators']['motor_rosca']}, DIR={state['actuators'].get('tambor_dir', False)}, "
+        print(f"GPIO: VENT={not state['actuators']['ventilador']}, RES={not state['actuators']['resistencia']}, "
+              f"ROSCA={not state['actuators']['motor_rosca']}, DIR={state['actuators'].get('tambor_dir', False)}, "
               f"PUL={state['actuators'].get('tambor_pul', False)}")
     else:
-        # Modo simulação - mostrar estado
-        print(f"SIMUL: {state['actuators']}")
+        # Modo simulação - mostrar estado (lógica invertida)
+        sim_state = {k: ('LOW' if v else 'HIGH') for k, v in state['actuators'].items()}
+        print(f"SIMUL: {state['actuators']} → GPIO = {sim_state}")
 
 def handle_automatic_mode():
     """Gerencia a lógica de controle no modo automático."""
@@ -581,6 +583,13 @@ def main():
 
     sio.disconnect()
     if USE_RPI and _rpi_ready:
+        # Desligar todos os relés (HIGH) antes de limpar GPIOs
+        print("🔌 Desligando todos os relés...")
+        GPIO.output(PIN_VENTILADOR, GPIO.HIGH)
+        GPIO.output(PIN_RESISTENCIA, GPIO.HIGH)
+        GPIO.output(PIN_MOTOR_ROSCA, GPIO.HIGH)
+        GPIO.output(PIN_TAMBOR_DIR, GPIO.HIGH)
+        GPIO.output(PIN_TAMBOR_PUL, GPIO.HIGH)
         GPIO.cleanup()
     cv2.destroyAllWindows()
     print("Programa finalizado.")

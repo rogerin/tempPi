@@ -109,7 +109,7 @@ function showToast(message, type = 'info') {
 // API Calls
 async function fetchAPI(endpoint) {
     try {
-        const response = await fetch(`${API_BASE}/api/${endpoint}`);
+        const response = await fetch(`${API_BASE}${endpoint}`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -124,7 +124,7 @@ async function fetchAPI(endpoint) {
 // Carregar lista de sensores no dropdown
 async function loadSensorsDropdown() {
     try {
-        const sensors = await fetchAPI('sensors');
+        const sensors = await fetchAPI('/api/sensors');
         const dropdown = document.getElementById('sensors-dropdown');
         
         if (dropdown) {
@@ -132,8 +132,8 @@ async function loadSensorsDropdown() {
             sensors.forEach(sensor => {
                 const li = document.createElement('li');
                 li.innerHTML = `
-                    <a class="dropdown-item" href="/sensor/${encodeURIComponent(sensor)}">
-                        <i class="fas fa-thermometer-half"></i> ${sensor}
+                    <a class="dropdown-item" href="/sensor/${encodeURIComponent(sensor.sensor_name)}">
+                        <i class="fas fa-thermometer-half"></i> ${sensor.sensor_name}
                     </a>
                 `;
                 dropdown.appendChild(li);
@@ -156,13 +156,13 @@ async function loadData(page = 1, filters = {}) {
             ...filters
         });
         
-        const data = await fetchAPI(`data?${params}`);
+        const data = await fetchAPI(`/api/sensors?${params}`);
         
         // Atualizar tabela
-        updateDataTable(data.data);
+        updateDataTable(data);
         
         // Atualizar paginação
-        updatePagination(data.page, data.total_pages, data.total);
+        // updatePagination(data.page, data.total_pages, data.total);
         
         currentPage = page;
         currentFilters = filters;

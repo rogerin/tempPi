@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Conectado ao servidor WebSocket!');
         // Solicita os dados mais recentes ao se conectar
         socket.emit('request_initial_data');
+        fetchSensorData();
     });
 
     // Listener para atualizações do backend
@@ -20,6 +21,15 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Update recebido:', data);
         updateUI(data);
     });
+
+    function fetchSensorData() {
+        fetch('/api/sensors')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Dados dos sensores recebidos:', data);
+            })
+            .catch(error => console.error('Erro ao buscar dados dos sensores:', error));
+    }
 
     function updateUI(state) {
         // Atualizar campos de settings

@@ -2,9 +2,10 @@
 # sensor_server.py
 # Servidor HTTP e WebSocket para visualização e controle de dados dos sensores
 
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 from flask_socketio import SocketIO
 import os
+import sqlite3
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret-key-for-iot-project'
@@ -23,6 +24,21 @@ def index():
 def control():
     """Página de controle do sistema."""
     return render_template('control.html')
+
+@app.route('/api/sensors')
+def api_sensors():
+    """Retorna uma lista única de nomes de sensores."""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT sensor_name FROM sensor_readings")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        data = [row[0] for row in rows]
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ============= EVENTOS WEBSOCKET =============
 

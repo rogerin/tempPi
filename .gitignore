@@ -33,3 +33,7 @@ __pycache__/
 .env.production.local   
 
 *.db
+
+# Logs
+logs/
+*.log

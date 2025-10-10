@@ -212,21 +212,31 @@ def validate_sensors():
     working_sensors = 0
     failed_sensors = []
     
-    # Testar cada sensor (3 tentativas cada)
+    # Mapear sensor_name para chave do thermo_sensors dict
     sensors_to_test = [
-        ('Temp Torre 1', lambda: read_max6675(thermocouple_torre1)),
-        ('Temp Torre 2', lambda: read_max6675(thermocouple_torre2)),
-        ('Temp Torre 3', lambda: read_max6675(thermocouple_torre3)),
-        ('Temp Tanque', lambda: read_max6675(thermocouple_tanque)),
-        ('Temp Gases', lambda: read_max6675(thermocouple_gases)),
-        ('Temp Forno', lambda: read_max6675(thermocouple_forno)),
+        ('Temp Torre 1', 'Torre Nível 1'),
+        ('Temp Torre 2', 'Torre Nível 2'),
+        ('Temp Torre 3', 'Torre Nível 3'),
+        ('Temp Tanque', 'Temp Tanque'),
+        ('Temp Gases', 'Temp Saída Gases'),
+        ('Temp Forno', 'Temp Forno'),
     ]
     
-    for sensor_name, read_func in sensors_to_test:
+    for sensor_name, thermo_key in sensors_to_test:
         success = False
+        
+        # Verificar se sensor foi inicializado
+        if thermo_key not in thermo_sensors:
+            print(f"  ❌ {sensor_name}: Sensor não inicializado")
+            _sensor_status[sensor_name] = False
+            failed_sensors.append(sensor_name)
+            continue
+        
+        # Testar sensor (3 tentativas)
         for attempt in range(3):
             try:
-                value = read_func()
+                value = thermo_sensors[thermo_key].readTempC()
+                
                 # Validar se é um valor real (não None, não NaN, dentro de limites)
                 if value is not None and not math.isnan(value) and -50 < value < 1500:
                     _sensor_status[sensor_name] = True
@@ -234,6 +244,9 @@ def validate_sensors():
                     success = True
                     print(f"  ✅ {sensor_name}: {value:.1f}°C - OK")
                     break
+                else:
+                    if attempt == 2:
+                        print(f"  ❌ {sensor_name}: Leitura inválida ({value}°C)")
             except Exception as e:
                 if attempt == 2:  # Última tentativa
                     print(f"  ❌ {sensor_name}: FALHA - {e}")
@@ -532,66 +545,27 @@ def compute_values():
         # ===== MODO RASPBERRY PI - LEITURA REAL =====
         values = {}
         
-        # Apenas ler sensores validados
-        if _sensor_status.get('Temp Torre 1', False):
-            try:
-                temp = read_max6675(thermocouple_torre1)
-                if temp is not None and not math.isnan(temp) and -50 < temp < 1500:
-                    values["Torre Nível 1"] = round(temp, 1)
-                else:
-                    print(f"⚠️  Temp Torre 1: Leitura inválida ({temp})")
-            except Exception as e:
-                print(f"❌ Erro ao ler Temp Torre 1: {e}")
+        # Mapeamento: _sensor_status key -> thermo_sensors key -> values key
+        sensor_mapping = {
+            'Temp Torre 1': ('Torre Nível 1', 'Torre Nível 1'),
+            'Temp Torre 2': ('Torre Nível 2', 'Torre Nível 2'),
+            'Temp Torre 3': ('Torre Nível 3', 'Torre Nível 3'),
+            'Temp Tanque': ('Temp Tanque', 'Temp Tanque'),
+            'Temp Gases': ('Temp Saída Gases', 'Temp Saída Gases'),
+            'Temp Forno': ('Temp Forno', 'Temp Forno'),
+        }
         
-        if _sensor_status.get('Temp Torre 2', False):
-            try:
-                temp = read_max6675(thermocouple_torre2)
-                if temp is not None and not math.isnan(temp) and -50 < temp < 1500:
-                    values["Torre Nível 2"] = round(temp, 1)
-                else:
-                    print(f"⚠️  Temp Torre 2: Leitura inválida ({temp})")
-            except Exception as e:
-                print(f"❌ Erro ao ler Temp Torre 2: {e}")
-        
-        if _sensor_status.get('Temp Torre 3', False):
-            try:
-                temp = read_max6675(thermocouple_torre3)
-                if temp is not None and not math.isnan(temp) and -50 < temp < 1500:
-                    values["Torre Nível 3"] = round(temp, 1)
-                else:
-                    print(f"⚠️  Temp Torre 3: Leitura inválida ({temp})")
-            except Exception as e:
-                print(f"❌ Erro ao ler Temp Torre 3: {e}")
-        
-        if _sensor_status.get('Temp Tanque', False):
-            try:
-                temp = read_max6675(thermocouple_tanque)
-                if temp is not None and not math.isnan(temp) and -50 < temp < 1500:
-                    values["Temp Tanque"] = round(temp, 1)
-                else:
-                    print(f"⚠️  Temp Tanque: Leitura inválida ({temp})")
-            except Exception as e:
-                print(f"❌ Erro ao ler Temp Tanque: {e}")
-        
-        if _sensor_status.get('Temp Gases', False):
-            try:
-                temp = read_max6675(thermocouple_gases)
-                if temp is not None and not math.isnan(temp) and -50 < temp < 1500:
-                    values["Temp Saída Gases"] = round(temp, 1)
-                else:
-                    print(f"⚠️  Temp Gases: Leitura inválida ({temp})")
-            except Exception as e:
-                print(f"❌ Erro ao ler Temp Gases: {e}")
-        
-        if _sensor_status.get('Temp Forno', False):
-            try:
-                temp = read_max6675(thermocouple_forno)
-                if temp is not None and not math.isnan(temp) and -50 < temp < 1500:
-                    values["Temp Forno"] = round(temp, 1)
-                else:
-                    print(f"⚠️  Temp Forno: Leitura inválida ({temp})")
-            except Exception as e:
-                print(f"❌ Erro ao ler Temp Forno: {e}")
+        for status_key, (thermo_key, values_key) in sensor_mapping.items():
+            if _sensor_status.get(status_key, False):
+                try:
+                    if thermo_key in thermo_sensors:
+                        temp = thermo_sensors[thermo_key].readTempC()
+                        if temp is not None and not math.isnan(temp) and -50 < temp < 1500:
+                            values[values_key] = round(temp, 1)
+                        else:
+                            print(f"⚠️  {status_key}: Leitura inválida ({temp})")
+                except Exception as e:
+                    print(f"❌ Erro ao ler {status_key}: {e}")
         
         # Adicionar valores simulados para sensores não disponíveis
         if "Velocidade" not in values:

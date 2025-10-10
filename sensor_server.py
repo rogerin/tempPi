@@ -338,7 +338,7 @@ def handle_control_event(data):
 @socketio.on('dashboard_update', namespace='/dashboard')
 def handle_dashboard_update(data):
     """Recebe uma atualização de estado do dashboard e a retransmite para todos os clientes web."""
-    # print(f"Update do dashboard recebido: {data}") # Descomente para debug
+    print(f"📡 Retransmitindo update para web: actuators={data.get('actuators')}")
     socketio.emit('update_from_dashboard', data, namespace='/web')
 
 

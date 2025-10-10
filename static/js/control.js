@@ -1,6 +1,19 @@
 document.addEventListener('DOMContentLoaded', function() {
     const socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port + '/web');
 
+    // Estado local do frontend
+    let state = {
+        settings: {},
+        values: {},
+        actuators: {
+            ventilador: false,
+            resistencia: false,
+            motor_rosca: false,
+            tambor_dir: false,
+            tambor_pul: false
+        }
+    };
+
     // Mapear elementos da UI
     const settingInputs = document.querySelectorAll('#temp-settings-form input, #pressure-time-settings-form input');
     const modeRadios = document.querySelectorAll('input[name="system_mode"]');
@@ -31,7 +44,10 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => console.error('Erro ao buscar dados dos sensores:', error));
     }
 
-    function updateUI(state) {
+    function updateUI(data) {
+        // Atualizar state local
+        state = { ...state, ...data };
+
         // Atualizar campos de settings
         for (const [key, value] of Object.entries(state.settings)) {
             const input = document.getElementById(key);
@@ -68,6 +84,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (state.actuators) {
             updateActuatorStatus(state.actuators);
         }
+
+        // Atualizar badges dos botões manuais
+        updateManualButtonBadges();
     }
 
     function updateTemperatureDisplays(values) {
@@ -128,7 +147,26 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function updateManualButtonBadges() {
+        const updateBadge = (buttonId, target) => {
+            const button = document.getElementById(buttonId);
+            if (!button) return;
+            
+            const badge = button.querySelector('.badge');
+            if (!badge) return;
+            
+            const isActive = state.actuators[target];
+            badge.textContent = isActive ? 'Ligado' : 'Desligado';
+            badge.className = `badge ms-2 ${isActive ? 'bg-success' : 'bg-secondary'}`;
+            button.className = `btn ${isActive ? 'btn-success' : 'btn-outline-success'}`;
+        };
+        
+        updateBadge('manual-fan-btn', 'ventilador');
+        updateBadge('manual-screw-btn', 'motor_rosca');
+    }
+
     function emitControlEvent(command, payload) {
+        console.log(`📤 Enviando comando: ${command}`, payload);
         socket.emit('control_event', { command, payload });
     }
 
@@ -155,46 +193,38 @@ document.addEventListener('DOMContentLoaded', function() {
         const isDrumFwd = id === 'manual-drum-fwd-btn';
         const isDrumRev = id === 'manual-drum-rev-btn';
 
-        button.addEventListener('mousedown', () => { // Ação imediata
+        button.addEventListener('click', () => {
             if (isDrumFwd) {
-                emitControlEvent('MANUAL_CONTROL', { target: 'tambor_dir', state: true });
-                emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: true });
+                // Toggle tambor forward
+                const isActive = state.actuators?.tambor_pul && state.actuators?.tambor_dir;
+                if (isActive) {
+                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: false });
+                } else {
+                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_dir', state: true });
+                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: true });
+                }
             } else if (isDrumRev) {
-                emitControlEvent('MANUAL_CONTROL', { target: 'tambor_dir', state: false });
-                emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: true });
+                // Toggle tambor reverse
+                const isActive = state.actuators?.tambor_pul && !state.actuators?.tambor_dir;
+                if (isActive) {
+                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: false });
+                } else {
+                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_dir', state: false });
+                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: true });
+                }
             } else {
-                // CORREÇÃO: Mapear IDs para nomes corretos dos atuadores
+                // Toggle ventilador ou rosca
                 const targetMap = {
                     'manual-fan-btn': 'ventilador',
                     'manual-screw-btn': 'motor_rosca'
                 };
                 const target = targetMap[id];
-                if (target) {
-                    emitControlEvent('MANUAL_CONTROL', { target, state: true });
+                if (target && state.actuators) {
+                    const currentState = state.actuators[target] || false;
+                    emitControlEvent('MANUAL_CONTROL', { target, state: !currentState });
                 }
             }
         });
-
-        const stopDrum = () => {
-            if (isDrumFwd || isDrumRev) {
-                // Para o pulso do tambor
-                emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: false });
-            } else {
-                // CORREÇÃO: Mapear IDs para nomes corretos dos atuadores
-                const targetMap = {
-                    'manual-fan-btn': 'ventilador',
-                    'manual-screw-btn': 'motor_rosca'
-                };
-                const target = targetMap[id];
-                if (target) {
-                    emitControlEvent('MANUAL_CONTROL', { target, state: false });
-                }
-            }
-        };
-
-        button.addEventListener('mouseup', stopDrum);
-        button.addEventListener('mouseleave', stopDrum);
-        button.addEventListener('touchend', stopDrum);
     });
 
     // Funções auxiliares da UI

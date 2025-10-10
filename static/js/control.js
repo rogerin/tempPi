@@ -234,12 +234,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateHeatingButton(status) {
         heatingBtn.dataset.status = status;
+        
         if (status == 1) {
-            heatingBtn.classList.replace('btn-danger', 'btn-success');
-            heatingBtn.innerHTML = '<i class="fas fa-check"></i> Aquecimento Ligado';
+            heatingBtn.classList.remove('btn-danger');
+            heatingBtn.classList.add('btn-success');
+            heatingBtn.innerHTML = '<i class="fas fa-fire"></i> Aquecimento <span class="badge bg-success ms-2">Ligado</span>';
         } else {
-            heatingBtn.classList.replace('btn-success', 'btn-danger');
-            heatingBtn.innerHTML = '<i class="fas fa-power-off"></i> Ligar Aquecimento';
+            heatingBtn.classList.remove('btn-success');
+            heatingBtn.classList.add('btn-danger');
+            heatingBtn.innerHTML = '<i class="fas fa-power-off"></i> Aquecimento <span class="badge bg-secondary ms-2">Desligado</span>';
         }
     }
 

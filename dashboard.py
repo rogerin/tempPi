@@ -13,6 +13,7 @@ ap = argparse.ArgumentParser(description="Dashboard de controle para sistema de 
 ap.add_argument("--img", required=True, help="Caminho da imagem de fundo.")
 ap.add_argument("--scale", type=float, default=1.0, help="Escala da janela (ex.: 1.0).")
 ap.add_argument("--use-rpi", action="store_true", help="Ativar modo Raspberry Pi (GPIO/MAX6675).")
+ap.add_argument("--skip-test", action="store_true", help="Pula a rotina de teste ao iniciar")
 
 # Argumentos para sensores de temperatura (3 pinos cada: SCK, CS, SO)
 ap.add_argument("--thermo-torre1", nargs=3, type=int, default=[25, 24, 18], 
@@ -448,6 +449,72 @@ def draw_centered_text(img, text, center_xy, font_scale, thickness, color=TEXT_C
         cv2.putText(img, text, (x, y), FONT, font_scale, (255,255,255), OUTLINE_THICKNESS, cv2.LINE_AA)
     cv2.putText(img, text, (x, y), FONT, font_scale, color, thickness, cv2.LINE_AA)
 
+# ============= 9.5) STARTUP TEST ROUTINE =============
+def run_startup_test():
+    """Executa rotina de teste de todos os atuadores ao iniciar."""
+    global state
+    
+    print("\n" + "="*50)
+    print("🧪 INICIANDO ROTINA DE TESTE DOS ATUADORES")
+    print("="*50)
+    
+    # Salvar estado original
+    original_mode = state['settings'].get('system_mode', 0)
+    state['settings']['system_mode'] = 1  # Força modo manual para teste
+    
+    # Lista de testes
+    tests = [
+        ("Ventilador", "ventilador", 1.0),
+        ("Resistência", "resistencia", 1.0),
+        ("Rosca de Alimentação", "motor_rosca", 1.0),
+    ]
+    
+    # Testar atuadores simples
+    for name, actuator, duration in tests:
+        print(f"\n🔧 Testando {name}...")
+        state['actuators'][actuator] = True
+        apply_actuator_state()
+        sio.emit('dashboard_update', state, namespace='/dashboard')
+        time.sleep(duration)
+        
+        state['actuators'][actuator] = False
+        apply_actuator_state()
+        sio.emit('dashboard_update', state, namespace='/dashboard')
+        time.sleep(0.5)
+    
+    # Testar Tambor Avanço
+    print(f"\n🔧 Testando Tambor Avanço...")
+    state['actuators']['tambor_dir'] = True
+    state['actuators']['tambor_pul'] = True
+    apply_actuator_state()
+    sio.emit('dashboard_update', state, namespace='/dashboard')
+    time.sleep(2.0)
+    
+    state['actuators']['tambor_pul'] = False
+    apply_actuator_state()
+    sio.emit('dashboard_update', state, namespace='/dashboard')
+    time.sleep(0.5)
+    
+    # Testar Tambor Retorno
+    print(f"\n🔧 Testando Tambor Retorno...")
+    state['actuators']['tambor_dir'] = False
+    state['actuators']['tambor_pul'] = True
+    apply_actuator_state()
+    sio.emit('dashboard_update', state, namespace='/dashboard')
+    time.sleep(2.0)
+    
+    # Desligar tudo
+    state['actuators']['tambor_pul'] = False
+    apply_actuator_state()
+    sio.emit('dashboard_update', state, namespace='/dashboard')
+    
+    # Restaurar modo original
+    state['settings']['system_mode'] = original_mode
+    
+    print("\n" + "="*50)
+    print("✅ ROTINA DE TESTE CONCLUÍDA")
+    print("="*50 + "\n")
+
 # ============= 10) MAIN LOOP =============
 def main():
     global state, STOP
@@ -466,6 +533,14 @@ def main():
     except socketio.exceptions.ConnectionError as e:
         print(f"Falha ao conectar ao servidor: {e}")
         return
+
+    # NOVO: Executar rotina de teste
+    if not args.skip_test:
+        print("⏳ Aguardando 2 segundos antes de iniciar teste...")
+        time.sleep(2)
+        run_startup_test()
+    else:
+        print("⏭️  Rotina de teste pulada (--skip-test)")
 
     bg = cv2.imread(args.img)
     if bg is None: raise SystemExit(f"Não consegui abrir a imagem: {args.img}")

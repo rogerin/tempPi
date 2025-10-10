@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=TempPi Dashboard
+Comment=Sistema de Monitoramento IoT
+Exec=gnome-terminal -- bash -c "cd /home/admin/Documentos/tempPi && ./start_temppi.sh; exec bash"
+Icon=/home/admin/Documentos/tempPi/static/images/keycore-logo.png
+Terminal=true
+Categories=Utility;Development;
+Path=/home/admin/Documentos/tempPi
+StartupNotify=true

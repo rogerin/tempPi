@@ -226,10 +226,8 @@ class PressureSensorADS1115:
         self.ads = ADS.ADS1115(self.i2c, address=i2c_address)
         self.ads.gain = 1  # ±4.096V range
         
-        if channel == 0:
-            self.channel = AnalogIn(self.ads, ADS.P0)
-        elif channel == 1:
-            self.channel = AnalogIn(self.ads, ADS.P1)
+        if channel in [0, 1, 2, 3]:
+            self.channel = AnalogIn(self.ads, channel)
         else:
             raise ValueError("Canal inválido (use 0-3)")
     

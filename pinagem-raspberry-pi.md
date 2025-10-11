@@ -3,10 +3,10 @@
 ## Resumo das Alterações para Resolver Conflitos
 
 ### GPIOs Alterados:
-1. **Temp Tanque SCK**: GPIO 4 → GPIO 13
+1. **Temp Tanque SCK**: GPIO 4 → GPIO 1
 2. **Temp Tanque CS**: GPIO 6 → GPIO 15  
-3. **Temp Tanque SO**: GPIO 5 → GPIO 19
-4. **Tambor DIR**: GPIO 6 → GPIO 15
+3. **Temp Tanque SO**: GPIO 5 → GPIO 0
+4. **Tambor DIR**: GPIO 6 → GPIO 4
 
 ### GPIOs Mantidos (sem conflito):
 - Tambor PUL: GPIO 19 ✅
@@ -28,9 +28,9 @@
 | Torre Nível 3 | SCK | 21 | 40 | Clock SPI |
 | Torre Nível 3 | CS | 20 | 38 | Chip Select |
 | Torre Nível 3 | SO | 16 | 36 | Data Out |
-| **Temp Tanque (T4)** | **SCK** | **13** | **33** | Clock SPI - ALTERADO |
-| **Temp Tanque (T4)** | **CS** | **15** | **10** | Chip Select - ALTERADO |
-| **Temp Tanque (T4)** | **SO** | **19** | **35** | Data Out - ALTERADO |
+| **Temp Tanque (T4)** | **SCK** | **1** | **28** | Clock SPI - ALTERADO |
+| **Temp Tanque (T4)** | **CS** | **15** | **10** | Chip Select - MANTIDO |
+| **Temp Tanque (T4)** | **SO** | **0** | **27** | Data Out - ALTERADO |
 | Temp Gases | SCK | 22 | 15 | Clock SPI |
 | Temp Gases | CS | 27 | 13 | Chip Select |
 | Temp Gases | SO | 17 | 11 | Data Out |
@@ -45,7 +45,7 @@
 | Resistência | OUT | 26 | 37 | Relé (LOW=ligado) |
 | Motor Rosca | OUT | 12 | 32 | Relé (LOW=ligado) |
 | **MOTOR TAMBOR (Driver de Passo)** |
-| Tambor | DIR | **15** | **10** | Direção - ALTERADO |
+| Tambor | DIR | **4** | **7** | Direção - ALTERADO |
 | Tambor | PUL | 19 | 35 | Pulsos (PWM) |
 | Tambor | ENA | 5 | 29 | Enable |
 
@@ -65,6 +65,38 @@ Após as mudanças, todos os GPIOs estão livres:
 - ✅ Mantém tambor PUL e ENA onde está
 - ✅ Mudanças mínimas (apenas 4 pinos alterados)
 - ✅ Usa GPIOs disponíveis e seguros
+
+## Verificação Final de Conflitos
+
+### GPIOs Usados (após correção):
+- GPIO 0: Temp Tanque SO ✅
+- GPIO 1: Temp Tanque SCK ✅
+- GPIO 2: I2C SDA ✅
+- GPIO 3: I2C SCL ✅
+- GPIO 4: Tambor DIR ✅
+- GPIO 5: Tambor ENA ✅
+- GPIO 7: Torre 2 SCK ✅
+- GPIO 8: Torre 2 CS ✅
+- GPIO 9: Forno CS ✅
+- GPIO 10: Forno SO ✅
+- GPIO 11: Forno SCK ✅
+- GPIO 12: Motor Rosca ✅
+- GPIO 14: Ventilador ✅
+- GPIO 15: Temp Tanque CS ✅
+- GPIO 16: Torre 3 SO ✅
+- GPIO 17: Gases SO ✅
+- GPIO 18: Torre 1 SO ✅
+- GPIO 19: Tambor PUL ✅
+- GPIO 20: Torre 3 CS ✅
+- GPIO 21: Torre 3 SCK ✅
+- GPIO 22: Gases SCK ✅
+- GPIO 23: Torre 2 SO ✅
+- GPIO 24: Torre 1 CS ✅
+- GPIO 25: Torre 1 SCK ✅
+- GPIO 26: Resistência ✅
+- GPIO 27: Gases CS ✅
+
+**✅ RESULTADO: ZERO CONFLITOS DE GPIO!**
 
 ## Comandos de Teste
 

@@ -26,8 +26,8 @@ ap.add_argument("--thermo-torre2", nargs=3, type=int, default=[7, 8, 23],
                 metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Torre Nível 2 (padrão: 7 8 23)")
 ap.add_argument("--thermo-torre3", nargs=3, type=int, default=[21, 20, 16], 
                 metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Torre Nível 3 (padrão: 21 20 16)")
-ap.add_argument("--thermo-tanque", nargs=3, type=int, default=[1, 15, 0],
-                metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Tanque (padrão: 1 15 0)")
+ap.add_argument("--thermo-tanque", nargs=3, type=int, default=[4, 15, 0],
+                metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Tanque (padrão: 4 15 0)")
 ap.add_argument("--thermo-gases", nargs=3, type=int, default=[22, 27, 17], 
                 metavar=('SCK', 'CS', 'SO'), help="Pinos GPIO para sensor temperatura Saída Gases (padrão: 22 27 17)")
 ap.add_argument("--thermo-forno", nargs=3, type=int, default=[11, 9, 10], 
@@ -41,7 +41,7 @@ ap.add_argument("--pressao2-pin", type=int, default=3, help="Pino GPIO para Sens
 ap.add_argument("--ventilador-pin", type=int, default=14, help="Pino GPIO para controle do Ventilador (padrão: 14)")
 ap.add_argument("--resistencia-pin", type=int, default=26, help="Pino GPIO para controle da Resistência (padrão: 26)")
 ap.add_argument("--motor-rosca-pin", type=int, default=12, help="Pino GPIO para Motor Rosca Alimentação (padrão: 12)")
-ap.add_argument("--tambor-dir-pin", type=int, default=4, help="Pino GPIO para DIR+ Driver Motor Tambor (padrão: 4)")
+ap.add_argument("--tambor-dir-pin", type=int, default=6, help="Pino GPIO para DIR+ Driver Motor Tambor (padrão: 6)")
 ap.add_argument("--tambor-pul-pin", type=int, default=19, help="Pino GPIO para PUL+ Driver Motor Tambor (padrão: 19)")
 ap.add_argument("--tambor-ena-pin", type=int, default=5, help="Pino GPIO para ENA+ Driver Motor Tambor (padrão: 5)")
 

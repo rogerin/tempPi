@@ -22,7 +22,7 @@ except ImportError:
     print("⚠️  RPi.GPIO não disponível - Modo SIMULAÇÃO")
 
 # Configuração dos pinos (conexão física real)
-PIN_DIR = 4   # GPIO4 - Direção (DIR+) - Pino físico 7
+PIN_DIR = 6   # GPIO6 - Direção (DIR+) - Pino físico 31
 PIN_PUL = 19  # GPIO19 - Pulsos (PUL+) - Pino físico 35 (suporta PWM)
 PIN_ENA = 5   # GPIO5 - Enable (ENA+) - Pino físico 29
 
@@ -44,7 +44,7 @@ def setup_gpio():
     GPIO.output(PIN_PUL, GPIO.HIGH)  # Pulso inicia em HIGH (borda de descida)
     
     print(f"✅ GPIOs configurados:")
-    print(f"   - PIN_DIR (GPIO{PIN_DIR}): Direção - Pino físico 7")
+    print(f"   - PIN_DIR (GPIO{PIN_DIR}): Direção - Pino físico 31")
     print(f"   - PIN_PUL (GPIO{PIN_PUL}): Pulsos (PWM) - Pino físico 35")
     print(f"   - PIN_ENA (GPIO{PIN_ENA}): Enable - Pino físico 29")
     print(f"   💡 Motor habilitado (ENA=LOW)")

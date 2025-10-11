@@ -22,9 +22,9 @@ except ImportError:
     print("⚠️  RPi.GPIO não disponível - Modo SIMULAÇÃO")
 
 # Configuração dos pinos (conexão física real)
-PIN_DIR = 13  # GPIO13 - Direção (DIR+)
-PIN_PUL = 19  # GPIO19 - Pulsos (PUL+)
-# ENA+ e ENA- fixos no GND (motor sempre habilitado)
+PIN_DIR = 6   # GPIO6 - Direção (DIR+) - Pino físico 31
+PIN_PUL = 19  # GPIO19 - Pulsos (PUL+) - Pino físico 35 (suporta PWM)
+PIN_ENA = 5   # GPIO5 - Enable (ENA+) - Pino físico 29
 
 def setup_gpio():
     """Configura os pinos GPIO."""
@@ -36,24 +36,27 @@ def setup_gpio():
     GPIO.setwarnings(False)
     GPIO.setup(PIN_DIR, GPIO.OUT)
     GPIO.setup(PIN_PUL, GPIO.OUT)
+    GPIO.setup(PIN_ENA, GPIO.OUT)
     
-    # Inicializar (baseado no Arduino funcional)
-    # Sem ENABLE - motor sempre habilitado (ENA no GND)
+    # Inicializar
+    GPIO.output(PIN_ENA, GPIO.LOW)   # Enable = LOW (motor habilitado)
     GPIO.output(PIN_DIR, GPIO.HIGH)  # Direção padrão (CCW)
     GPIO.output(PIN_PUL, GPIO.HIGH)  # Pulso inicia em HIGH (borda de descida)
     
     print(f"✅ GPIOs configurados:")
-    print(f"   - PIN_DIR (GPIO{PIN_DIR}): Direção")
-    print(f"   - PIN_PUL (GPIO{PIN_PUL}): Pulsos")
-    print(f"   ⚠️  ENABLE fixo no GND (motor sempre habilitado)")
+    print(f"   - PIN_DIR (GPIO{PIN_DIR}): Direção - Pino físico 31")
+    print(f"   - PIN_PUL (GPIO{PIN_PUL}): Pulsos (PWM) - Pino físico 35")
+    print(f"   - PIN_ENA (GPIO{PIN_ENA}): Enable - Pino físico 29")
+    print(f"   💡 Motor habilitado (ENA=LOW)")
 
 def cleanup_gpio():
     """Limpa os GPIOs."""
     if USE_RPI:
-        # Sem ENABLE para desabilitar - motor sempre habilitado
+        # Desabilitar motor antes de limpar
+        GPIO.output(PIN_ENA, GPIO.HIGH)  # Enable = HIGH (motor desabilitado)
         GPIO.cleanup()
         print("🧹 GPIOs limpos")
-        print("⚠️  Motor continua habilitado (ENA fixo no GND)")
+        print("✅ Motor desabilitado (ENA=HIGH)")
 
 def rotate_motor(direction='forward', steps=200, speed=500):
     """

@@ -41,8 +41,9 @@ ap.add_argument("--pressao2-pin", type=int, default=3, help="Pino GPIO para Sens
 ap.add_argument("--ventilador-pin", type=int, default=14, help="Pino GPIO para controle do Ventilador (padrão: 14)")
 ap.add_argument("--resistencia-pin", type=int, default=26, help="Pino GPIO para controle da Resistência (padrão: 26)")
 ap.add_argument("--motor-rosca-pin", type=int, default=12, help="Pino GPIO para Motor Rosca Alimentação (padrão: 12)")
-ap.add_argument("--tambor-dir-pin", type=int, default=13, help="Pino GPIO para DIR+ Driver Motor Tambor (padrão: 13)")
+ap.add_argument("--tambor-dir-pin", type=int, default=6, help="Pino GPIO para DIR+ Driver Motor Tambor (padrão: 6)")
 ap.add_argument("--tambor-pul-pin", type=int, default=19, help="Pino GPIO para PUL+ Driver Motor Tambor (padrão: 19)")
+ap.add_argument("--tambor-ena-pin", type=int, default=5, help="Pino GPIO para ENA+ Driver Motor Tambor (padrão: 5)")
 
 args = ap.parse_args()
 USE_RPI = args.use_rpi
@@ -62,6 +63,7 @@ PIN_RESISTENCIA = args.resistencia_pin
 PIN_MOTOR_ROSCA = args.motor_rosca_pin
 PIN_TAMBOR_DIR  = args.tambor_dir_pin
 PIN_TAMBOR_PUL  = args.tambor_pul_pin
+PIN_TAMBOR_ENA  = args.tambor_ena_pin  # NOVO
 
 # UI / Campos
 FIELD_NAMES = [
@@ -89,7 +91,7 @@ state = {
     'values': {},
     'actuators': {
         'ventilador': False, 'resistencia': False, 'motor_rosca': False,
-        'tambor_dir': False, 'tambor_pul': False
+        'tambor_dir': False, 'tambor_pul': False, 'tambor_ena': False
     },
     'timers': {'resistencia_start_time': None, 'rosca_cycle_start': None}
 }
@@ -394,12 +396,16 @@ if USE_RPI:
     try:
         import RPi.GPIO as GPIO
         GPIO.setmode(GPIO.BCM)
-        output_pins = [PIN_VENTILADOR, PIN_RESISTENCIA, PIN_MOTOR_ROSCA, PIN_TAMBOR_DIR, PIN_TAMBOR_PUL]
+        output_pins = [PIN_VENTILADOR, PIN_RESISTENCIA, PIN_MOTOR_ROSCA, PIN_TAMBOR_DIR, PIN_TAMBOR_PUL, PIN_TAMBOR_ENA]
         for pin in output_pins:
             GPIO.setup(pin, GPIO.OUT, initial=GPIO.HIGH)  # Relés desligados ao iniciar
+        # Configurar motor de passo (desabilitado inicialmente)
+        GPIO.output(PIN_TAMBOR_ENA, GPIO.HIGH)  # Enable = HIGH (motor desabilitado)
+        
         _rpi_ready = True
         print("✅ GPIOs de saída configurados com sucesso.")
         print(f"🔧 GPIOs configurados: {output_pins} - Todos iniciando em HIGH (relés desligados)")
+        print(f"🔧 Motor de passo: ENA=HIGH (desabilitado)")
     except ImportError as e:
         print("\n💥 [ERRO CRÍTICO] Biblioteca RPi.GPIO não encontrada!")
         print("🔧 SOLUÇÃO:")
@@ -538,9 +544,10 @@ def apply_actuator_state():
         GPIO.output(PIN_VENTILADOR, not state['actuators']['ventilador'])
         GPIO.output(PIN_RESISTENCIA, not state['actuators']['resistencia'])
         GPIO.output(PIN_MOTOR_ROSCA, not state['actuators']['motor_rosca'])
-        # Tambor: DIR define direção, PUL é o pulso/enable (manter lógica direta para driver)
+        # Tambor: DIR define direção, PUL é o pulso, ENA habilita/desabilita
         GPIO.output(PIN_TAMBOR_DIR, state['actuators'].get('tambor_dir', False))
         GPIO.output(PIN_TAMBOR_PUL, state['actuators'].get('tambor_pul', False))
+        GPIO.output(PIN_TAMBOR_ENA, not state['actuators'].get('tambor_ena', False))  # LOW=habilitado
         print(f"GPIO: VENT={not state['actuators']['ventilador']}, RES={not state['actuators']['resistencia']}, "
               f"ROSCA={not state['actuators']['motor_rosca']}, DIR={state['actuators'].get('tambor_dir', False)}, "
               f"PUL={state['actuators'].get('tambor_pul', False)}")
@@ -569,6 +576,10 @@ def rotate_drum(direction, duration_seconds):
     
     print(f"🔧 Girando tambor: {velocidade} Hz, {steps} passos, {duration_seconds}s")
     
+    # Habilitar motor
+    GPIO.output(PIN_TAMBOR_ENA, GPIO.LOW)  # Enable = LOW (motor habilitado)
+    time.sleep(0.001)
+    
     # Definir direção
     GPIO.output(PIN_TAMBOR_DIR, direction)
     time.sleep(0.001)
@@ -579,6 +590,9 @@ def rotate_drum(direction, duration_seconds):
         time.sleep(delay)
         GPIO.output(PIN_TAMBOR_PUL, GPIO.HIGH)
         time.sleep(delay)
+    
+    # Desabilitar motor após rotação
+    GPIO.output(PIN_TAMBOR_ENA, GPIO.HIGH)  # Enable = HIGH (motor desabilitado)
     
     print(f"✅ Tambor girado: {steps} passos em {direction}")
 
@@ -904,6 +918,7 @@ def main():
         GPIO.output(PIN_MOTOR_ROSCA, GPIO.HIGH)
         GPIO.output(PIN_TAMBOR_DIR, GPIO.HIGH)
         GPIO.output(PIN_TAMBOR_PUL, GPIO.HIGH)
+        GPIO.output(PIN_TAMBOR_ENA, GPIO.HIGH)  # Desabilitar motor
         GPIO.cleanup()
     cv2.destroyAllWindows()
     print("Programa finalizado.")

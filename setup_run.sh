@@ -64,10 +64,10 @@ fi
 echo -e "${GREEN}=== Instalando dependências ===${NC}"
 pip install --upgrade pip -q
 
-# Exclui RPi.GPIO em não-Linux
+# Exclui RPi.GPIO e bibliotecas Adafruit em não-Linux
 if [ "$(uname)" != "Linux" ]; then
-    echo -e "${YELLOW}Ambiente não-Linux detectado. RPi.GPIO será ignorado.${NC}"
-    grep -v "RPi.GPIO" requirements.txt > requirements_temp.txt
+    echo -e "${YELLOW}Ambiente não-Linux detectado. RPi.GPIO e bibliotecas Adafruit serão ignorados.${NC}"
+    grep -v "RPi.GPIO" requirements.txt | grep -v "adafruit-" > requirements_temp.txt
     pip install -r requirements_temp.txt -q
     rm requirements_temp.txt
 else

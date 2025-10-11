@@ -21,7 +21,15 @@ echo "📦 Atualizando sistema..."
 sudo apt update
 
 echo "🔧 Instalando dependências do sistema..."
-sudo apt install -y python3-dev python3-pip python3-venv python3-rpi.gpio python3-opencv libopencv-dev
+sudo apt install -y python3-dev python3-pip python3-venv python3-rpi.gpio python3-opencv libopencv-dev i2c-tools python3-smbus
+
+echo "🔌 Verificando I2C..."
+if ! grep -q "^dtparam=i2c_arm=on" /boot/config.txt 2>/dev/null; then
+    echo "   ⚠️  I2C não está habilitado. Você pode habilitá-lo com:"
+    echo "      sudo raspi-config -> Interface Options -> I2C"
+else
+    echo "   ✅ I2C já está habilitado"
+fi
 
 echo "🐍 Verificando ambiente virtual..."
 if [ ! -d ".venv" ]; then
@@ -50,6 +58,14 @@ pip install RPi.GPIO flask werkzeug
 echo "⚡ Implementação nativa MAX6675 - Não precisa de bibliotecas externas!"
 echo "   O sistema agora usa protocolo SPI nativo com RPi.GPIO"
 
+echo "📊 Instalando bibliotecas para sensor de pressão (ADS1115)..."
+pip install adafruit-circuitpython-ads1x15 adafruit-blinka
+if [ $? -eq 0 ]; then
+    echo "   ✅ Bibliotecas ADS1115 instaladas com sucesso"
+else
+    echo "   ⚠️  Erro ao instalar bibliotecas ADS1115 - verifique manualmente"
+fi
+
 echo ""
 echo "🎉 INSTALAÇÃO CONCLUÍDA COM SUCESSO!"
 echo ""
@@ -70,3 +86,9 @@ echo "   • Filtros por sensor e data"
 echo "   • Histórico completo no SQLite"
 
 echo "💡 Dica: Execute 'python dashboard.py --help' para ver todas as opções."
+echo ""
+echo "🔍 Para testar o sensor de pressão ADS1115:"
+echo "   python3 test_ads1115.py"
+echo ""
+echo "🔧 Para verificar dispositivos I2C conectados:"
+echo "   sudo i2cdetect -y 1"

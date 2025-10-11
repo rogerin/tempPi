@@ -7,6 +7,10 @@ import cv2, numpy as np, random, argparse, time, math, warnings, signal, sqlite3
 from datetime import datetime
 import socketio
 import json
+import board
+import busio
+import adafruit_ads1x15.ads1115 as ADS
+from adafruit_ads1x15.analog_in import AnalogIn
 
 # ============= 1) ARGUMENTOS DE LINHA DE COMANDO =============
 ap = argparse.ArgumentParser(description="Dashboard de controle para sistema de destilação")
@@ -193,6 +197,55 @@ def load_settings():
             "velocidade_tambor": 1000,
         }
 
+def list_i2c_devices():
+    """Lista todos os dispositivos I2C conectados"""
+    if not USE_RPI:
+        return []
+    try:
+        i2c = busio.I2C(board.SCL, board.SDA)
+        while not i2c.try_lock():
+            pass
+        devices = i2c.scan()
+        i2c.unlock()
+        return [hex(device) for device in devices]
+    except Exception as e:
+        print(f"❌ Erro ao escanear I2C: {e}")
+        return []
+
+class PressureSensorADS1115:
+    """Lê sensor de pressão via ADS1115 no canal A0"""
+    
+    def __init__(self, channel=0, i2c_address=0x48):
+        """
+        Inicializa o sensor de pressão no ADS1115
+        - Sensor: 0-30 PSI com saída 0.5-4.5V
+        - Level shifter: 5V->3.3V
+        - Ganho: ±4.096V (GAIN=1)
+        """
+        self.i2c = busio.I2C(board.SCL, board.SDA)
+        self.ads = ADS.ADS1115(self.i2c, address=i2c_address)
+        self.ads.gain = 1  # ±4.096V range
+        
+        if channel == 0:
+            self.channel = AnalogIn(self.ads, ADS.P0)
+        elif channel == 1:
+            self.channel = AnalogIn(self.ads, ADS.P1)
+        else:
+            raise ValueError("Canal inválido (use 0-3)")
+    
+    def read_pressure_psi(self):
+        """Lê pressão em PSI"""
+        try:
+            voltage = self.channel.voltage
+            # Sensor: 0.5V=0PSI, 4.5V=30PSI
+            # Fórmula: PSI = (V - 0.5) * (30 / 4.0)
+            if voltage < 0.4:  # Abaixo do mínimo esperado
+                return 0.0
+            psi = (voltage - 0.5) * 7.5  # 30/4.0 = 7.5
+            return max(0.0, round(psi, 2))
+        except Exception as e:
+            raise Exception(f"Erro ao ler pressão: {e}")
+
 def validate_sensors():
     """
     Valida se os sensores estão conectados e funcionando.
@@ -220,10 +273,38 @@ def validate_sensors():
         ('Temp Tanque', 'Temp Tanque'),
         ('Temp Gases', 'Temp Saída Gases'),
         ('Temp Forno', 'Temp Forno'),
+        ('Pressão 1', None),  # Sensor de pressão via ADS1115
     ]
     
     for sensor_name, thermo_key in sensors_to_test:
         success = False
+        
+        # Sensor de pressão - lógica diferente
+        if sensor_name == 'Pressão 1':
+            if pressure_sensor is None:
+                print(f"  ❌ {sensor_name}: Sensor não inicializado")
+                _sensor_status[sensor_name] = False
+                failed_sensors.append(sensor_name)
+                continue
+            
+            for attempt in range(3):
+                try:
+                    value = pressure_sensor.read_pressure_psi()
+                    if value is not None and 0 <= value <= 50:
+                        _sensor_status[sensor_name] = True
+                        working_sensors += 1
+                        success = True
+                        print(f"  ✅ {sensor_name}: {value:.2f} PSI - OK")
+                        break
+                except Exception as e:
+                    if attempt == 2:
+                        print(f"  ❌ {sensor_name}: FALHA - {e}")
+                        failed_sensors.append(sensor_name)
+                time.sleep(0.1)
+            
+            if not success:
+                _sensor_status[sensor_name] = False
+            continue
         
         # Verificar se sensor foi inicializado
         if thermo_key not in thermo_sensors:
@@ -296,6 +377,7 @@ _sensor_status = {
     'Pressão 2': False,
 }
 thermo_sensors = {}
+pressure_sensor = None  # NOVO
 _hardware_init_success = True
 
 if USE_RPI:
@@ -426,6 +508,27 @@ if USE_RPI:
             _hardware_init_success = False
         else:
             print("\n🚀 TODOS OS SENSORES ESTÃO FUNCIONANDO PERFEITAMENTE!")
+
+        # ============= INICIALIZAR SENSORES DE PRESSÃO (ADS1115) =============
+        print("\n🔍 Detectando dispositivos I2C...")
+        i2c_devices = list_i2c_devices()
+        if i2c_devices:
+            print(f"✅ Dispositivos I2C encontrados: {', '.join(i2c_devices)}")
+        else:
+            print("⚠️  Nenhum dispositivo I2C detectado")
+        
+        print("\n🔍 Inicializando sensor de pressão (ADS1115)...")
+        pressure_sensor = None
+        try:
+            pressure_sensor = PressureSensorADS1115(channel=0, i2c_address=0x48)
+            # Teste de leitura
+            test_pressure = pressure_sensor.read_pressure_psi()
+            print(f"  ✅ Sensor de pressão OK - Leitura teste: {test_pressure:.2f} PSI")
+            _sensor_status['Pressão 1'] = True
+        except Exception as e:
+            print(f"  ❌ Falha ao inicializar sensor de pressão: {e}")
+            _sensor_status['Pressão 1'] = False
+            failed_sensors.append(f"Sensor Pressão 1 (ADS1115 A0)")
 
 
 # ============= 7) LÓGICA DE CONTROLE E SIMULAÇÃO =============
@@ -566,6 +669,14 @@ def compute_values():
                             print(f"⚠️  {status_key}: Leitura inválida ({temp})")
                 except Exception as e:
                     print(f"❌ Erro ao ler {status_key}: {e}")
+        
+        # Leitura do sensor de pressão
+        if _sensor_status.get('Pressão 1', False) and pressure_sensor:
+            try:
+                pressure_psi = pressure_sensor.read_pressure_psi()
+                values["Pressão Gases"] = round(pressure_psi, 2)
+            except Exception as e:
+                print(f"❌ Erro ao ler sensor de pressão: {e}")
         
         # Adicionar valores simulados para sensores não disponíveis
         if "Velocidade" not in values:

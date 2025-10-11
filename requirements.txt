@@ -20,6 +20,10 @@ eventlet>=0.33.0
 # Instalar apenas quando executar em modo --use-rpi
 RPi.GPIO>=0.7.0
 
+# ADS1115 - Conversor ADC I2C para sensores de pressão
+adafruit-circuitpython-ads1x15>=2.2.0
+adafruit-blinka>=8.0.0
+
 # ⚡ MAX6675 - IMPLEMENTAÇÃO NATIVA! 
 # Não precisa mais de bibliotecas externas MAX6675
 # O sistema agora usa implementação nativa com RPi.GPIO

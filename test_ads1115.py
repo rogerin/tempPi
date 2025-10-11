@@ -174,6 +174,7 @@ def test_ads1115_pressure():
         import busio
         import adafruit_ads1x15.ads1115 as ADS
         from adafruit_ads1x15.analog_in import AnalogIn
+        import adafruit_ads1x15.ads1x15 as ADS1X15  # Necessário para P0, P1, P2, P3
         
         # Configurar ADS1115
         print(f"{Colors.BLUE}🔌 Configurando ADS1115...{Colors.RESET}")
@@ -182,7 +183,7 @@ def test_ads1115_pressure():
         ads.gain = 1  # ±4.096V range
         
         # Canal A0
-        channel = AnalogIn(ads, ADS.P0)
+        channel = AnalogIn(ads, ADS1X15.P0)
         print(f"{Colors.GREEN}✅ ADS1115 configurado no canal A0{Colors.RESET}")
         
         print(f"\n{Colors.BLUE}📊 Fazendo 5 leituras do sensor...{Colors.RESET}")
@@ -227,6 +228,170 @@ def test_ads1115_pressure():
         print(f"{Colors.RED}❌ Erro ao ler sensor: {e}{Colors.RESET}")
         return False
 
+def scan_all_ads1115_channels(i2c_address=0x48):
+    """Escaneia todos os 4 canais analógicos do ADS1115"""
+    print(f"\n{Colors.CYAN}{'='*60}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}📊 ESCANEANDO TODOS OS CANAIS ANALÓGICOS{Colors.RESET}")
+    print(f"{Colors.CYAN}{'='*60}{Colors.RESET}\n")
+    
+    try:
+        import board
+        import busio
+        import adafruit_ads1x15.ads1115 as ADS
+        from adafruit_ads1x15.analog_in import AnalogIn
+        import adafruit_ads1x15.ads1x15 as ADS1X15  # Necessário para P0, P1, P2, P3
+        
+        # Configurar ADS1115
+        print(f"{Colors.BLUE}🔌 Configurando ADS1115 (endereço 0x{i2c_address:02X})...{Colors.RESET}")
+        i2c = busio.I2C(board.SCL, board.SDA)
+        ads = ADS.ADS1115(i2c, address=i2c_address)
+        ads.gain = 1  # ±4.096V range
+        print(f"{Colors.GREEN}✅ ADS1115 configurado{Colors.RESET}\n")
+        
+        # Mapear canais para pinos
+        channels = {
+            'A0': ADS1X15.P0,
+            'A1': ADS1X15.P1,
+            'A2': ADS1X15.P2,
+            'A3': ADS1X15.P3,
+        }
+        
+        print(f"{Colors.BLUE}🔍 Lendo todos os canais analógicos...{Colors.RESET}\n")
+        
+        active_channels = []
+        
+        # Criar tabela de resultados
+        print(f"{Colors.CYAN}╔{'═'*58}╗{Colors.RESET}")
+        print(f"{Colors.CYAN}║{Colors.BOLD} Canal │ Tensão   │ Pressão  │ Status{' '*20}║{Colors.RESET}")
+        print(f"{Colors.CYAN}╠{'═'*58}╣{Colors.RESET}")
+        
+        for channel_name, channel_pin in channels.items():
+            try:
+                channel = AnalogIn(ads, channel_pin)
+                voltage = channel.voltage
+                
+                # Calcular pressão (0.5V=0PSI, 4.5V=30PSI)
+                if voltage < 0.4:
+                    psi = 0.0
+                    status = f"{Colors.YELLOW}Sem sensor / Desconectado{Colors.RESET}"
+                    icon = "⚪"
+                    color = Colors.YELLOW
+                elif 0.4 <= voltage <= 4.6:
+                    psi = (voltage - 0.5) * 7.5  # 30/4.0 = 7.5
+                    psi = max(0.0, psi)
+                    status = f"{Colors.GREEN}Sensor conectado{Colors.RESET}"
+                    icon = "🟢"
+                    color = Colors.GREEN
+                    active_channels.append((channel_name, voltage, psi))
+                else:
+                    psi = 0.0
+                    status = f"{Colors.RED}Fora do range{Colors.RESET}"
+                    icon = "🔴"
+                    color = Colors.RED
+                
+                # Formatar linha da tabela
+                voltage_str = f"{voltage:.3f}V"
+                psi_str = f"{psi:.2f} PSI" if psi > 0 else "  -  "
+                
+                print(f"{Colors.CYAN}║{color} {icon} {channel_name}  │ {voltage_str:<8} │ {psi_str:<8} │ {status}{' ' * (26 - len(channel_name))}{Colors.CYAN}║{Colors.RESET}")
+                
+            except Exception as e:
+                print(f"{Colors.CYAN}║{Colors.RED} ❌ {channel_name}  │ ERRO     │   -      │ Erro na leitura: {str(e)[:15]:<15}{Colors.CYAN}║{Colors.RESET}")
+        
+        print(f"{Colors.CYAN}╚{'═'*58}╝{Colors.RESET}\n")
+        
+        # Resumo
+        if active_channels:
+            print(f"{Colors.GREEN}{Colors.BOLD}✅ CANAIS ATIVOS ENCONTRADOS: {len(active_channels)}{Colors.RESET}")
+            for ch_name, ch_voltage, ch_psi in active_channels:
+                print(f"{Colors.GREEN}   • {ch_name}: {ch_voltage:.3f}V = {ch_psi:.2f} PSI{Colors.RESET}")
+        else:
+            print(f"{Colors.YELLOW}{Colors.BOLD}⚠️  NENHUM SENSOR ATIVO DETECTADO{Colors.RESET}")
+            print(f"{Colors.YELLOW}   Conecte sensores nos canais A0-A3{Colors.RESET}")
+        
+        return active_channels
+        
+    except ImportError as e:
+        print(f"{Colors.RED}❌ Erro de importação: {e}{Colors.RESET}")
+        print(f"{Colors.YELLOW}💡 Instale as dependências:{Colors.RESET}")
+        print(f"   pip install adafruit-circuitpython-ads1x15 adafruit-blinka\n")
+        return []
+    except Exception as e:
+        print(f"{Colors.RED}❌ Erro ao escanear canais: {e}{Colors.RESET}\n")
+        return []
+
+def test_ads1115_pressure_detailed(channel_name='A0'):
+    """Testa a leitura detalhada do sensor de pressão em um canal específico"""
+    print(f"\n{Colors.CYAN}{'='*60}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}🔍 TESTE DETALHADO - CANAL {channel_name}{Colors.RESET}")
+    print(f"{Colors.CYAN}{'='*60}{Colors.RESET}\n")
+    
+    try:
+        import board
+        import busio
+        import adafruit_ads1x15.ads1115 as ADS
+        from adafruit_ads1x15.analog_in import AnalogIn
+        import adafruit_ads1x15.ads1x15 as ADS1X15  # Necessário para P0, P1, P2, P3
+        
+        # Mapear nome do canal para pino
+        channel_map = {
+            'A0': ADS1X15.P0,
+            'A1': ADS1X15.P1,
+            'A2': ADS1X15.P2,
+            'A3': ADS1X15.P3,
+        }
+        
+        if channel_name not in channel_map:
+            print(f"{Colors.RED}❌ Canal inválido: {channel_name}{Colors.RESET}")
+            return False
+        
+        # Configurar ADS1115
+        print(f"{Colors.BLUE}🔌 Configurando ADS1115...{Colors.RESET}")
+        i2c = busio.I2C(board.SCL, board.SDA)
+        ads = ADS.ADS1115(i2c, address=0x48)
+        ads.gain = 1  # ±4.096V range
+        
+        # Canal especificado
+        channel = AnalogIn(ads, channel_map[channel_name])
+        print(f"{Colors.GREEN}✅ ADS1115 configurado no canal {channel_name}{Colors.RESET}")
+        
+        print(f"\n{Colors.BLUE}📊 Fazendo 5 leituras do sensor no canal {channel_name}...{Colors.RESET}")
+        readings = []
+        
+        for i in range(5):
+            voltage = channel.voltage
+            # Sensor: 0.5V=0PSI, 4.5V=30PSI
+            if voltage < 0.4:
+                psi = 0.0
+            else:
+                psi = (voltage - 0.5) * 7.5  # 30/4.0 = 7.5
+                psi = max(0.0, psi)
+            
+            readings.append((voltage, psi))
+            print(f"  {Colors.YELLOW}Leitura {i+1}:{Colors.RESET} {voltage:.3f}V = {Colors.GREEN}{psi:.2f} PSI{Colors.RESET}")
+            time.sleep(0.5)
+        
+        # Calcular média
+        avg_voltage = sum(r[0] for r in readings) / len(readings)
+        avg_psi = sum(r[1] for r in readings) / len(readings)
+        
+        print(f"\n{Colors.CYAN}📈 RESULTADOS:{Colors.RESET}")
+        print(f"   {Colors.BOLD}Tensão média:{Colors.RESET} {avg_voltage:.3f}V")
+        print(f"   {Colors.BOLD}Pressão média:{Colors.RESET} {avg_psi:.2f} PSI")
+        
+        # Validar se está dentro do range esperado
+        if 0.4 <= avg_voltage <= 4.6:  # Margem de erro
+            print(f"\n{Colors.GREEN}{Colors.BOLD}✅ SENSOR FUNCIONANDO CORRETAMENTE!{Colors.RESET}")
+            return True
+        else:
+            print(f"\n{Colors.YELLOW}{Colors.BOLD}⚠️  TENSÃO FORA DO RANGE ESPERADO{Colors.RESET}")
+            print(f"{Colors.YELLOW}   Range esperado: 0.5-4.5V{Colors.RESET}")
+            return False
+            
+    except Exception as e:
+        print(f"{Colors.RED}❌ Erro ao ler sensor: {e}{Colors.RESET}")
+        return False
+
 def main():
     print(f"\n{Colors.BOLD}{Colors.BLUE}{'='*60}{Colors.RESET}")
     print(f"{Colors.BOLD}{Colors.BLUE}🧪 TESTE DO SENSOR DE PRESSÃO ADS1115{Colors.RESET}")
@@ -255,16 +420,35 @@ def main():
         print(f"{Colors.RED}{'='*60}{Colors.RESET}\n")
         return
     
-    # Teste de leitura do sensor
-    sensor_ok = test_ads1115_pressure()
+    # NOVO: Escanear todos os canais analógicos
+    active_channels = scan_all_ads1115_channels()
     
+    # Se houver canais ativos, fazer teste detalhado do primeiro canal ativo
+    if active_channels:
+        # Pegar o primeiro canal ativo
+        first_channel = active_channels[0][0]  # Nome do canal (A0, A1, etc)
+        
+        print(f"\n{Colors.BLUE}{'─'*60}{Colors.RESET}")
+        print(f"{Colors.BLUE}📋 Fazendo teste detalhado do canal {first_channel}...{Colors.RESET}")
+        print(f"{Colors.BLUE}{'─'*60}{Colors.RESET}")
+        
+        # Teste detalhado no primeiro canal ativo
+        sensor_ok = test_ads1115_pressure_detailed(first_channel)
+    else:
+        print(f"\n{Colors.YELLOW}⚠️  Nenhum sensor ativo para teste detalhado{Colors.RESET}")
+        sensor_ok = False
+    
+    # Resultado final
     print(f"\n{Colors.BOLD}{'='*60}{Colors.RESET}")
-    if sensor_ok:
+    if active_channels and sensor_ok:
         print(f"{Colors.GREEN}{Colors.BOLD}✅ TESTE CONCLUÍDO COM SUCESSO!{Colors.RESET}")
-        print(f"{Colors.GREEN}   O sensor de pressão está funcionando corretamente.{Colors.RESET}")
+        print(f"{Colors.GREEN}   {len(active_channels)} sensor(es) de pressão funcionando corretamente.{Colors.RESET}")
+    elif active_channels:
+        print(f"{Colors.YELLOW}{Colors.BOLD}⚠️  TESTE PARCIALMENTE BEM-SUCEDIDO{Colors.RESET}")
+        print(f"{Colors.YELLOW}   Sensores detectados mas com leituras inconsistentes.{Colors.RESET}")
     else:
         print(f"{Colors.RED}{Colors.BOLD}❌ TESTE FALHOU!{Colors.RESET}")
-        print(f"{Colors.RED}   Verifique as conexões e configurações.{Colors.RESET}")
+        print(f"{Colors.RED}   Nenhum sensor detectado. Verifique as conexões.{Colors.RESET}")
     print(f"{Colors.BOLD}{'='*60}{Colors.RESET}\n")
 
 if __name__ == "__main__":

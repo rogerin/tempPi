@@ -174,7 +174,6 @@ def test_ads1115_pressure():
         import busio
         import adafruit_ads1x15.ads1115 as ADS
         from adafruit_ads1x15.analog_in import AnalogIn
-        import adafruit_ads1x15.ads1x15 as ADS1X15  # Necessário para P0, P1, P2, P3
         
         # Configurar ADS1115
         print(f"{Colors.BLUE}🔌 Configurando ADS1115...{Colors.RESET}")
@@ -183,7 +182,7 @@ def test_ads1115_pressure():
         ads.gain = 1  # ±4.096V range
         
         # Canal A0
-        channel = AnalogIn(ads, ADS1X15.P0)
+        channel = AnalogIn(ads, ADS.P0)
         print(f"{Colors.GREEN}✅ ADS1115 configurado no canal A0{Colors.RESET}")
         
         print(f"\n{Colors.BLUE}📊 Fazendo 5 leituras do sensor...{Colors.RESET}")
@@ -239,7 +238,6 @@ def scan_all_ads1115_channels(i2c_address=0x48):
         import busio
         import adafruit_ads1x15.ads1115 as ADS
         from adafruit_ads1x15.analog_in import AnalogIn
-        import adafruit_ads1x15.ads1x15 as ADS1X15  # Necessário para P0, P1, P2, P3
         
         # Configurar ADS1115
         print(f"{Colors.BLUE}🔌 Configurando ADS1115 (endereço 0x{i2c_address:02X})...{Colors.RESET}")
@@ -250,10 +248,10 @@ def scan_all_ads1115_channels(i2c_address=0x48):
         
         # Mapear canais para pinos
         channels = {
-            'A0': ADS1X15.P0,
-            'A1': ADS1X15.P1,
-            'A2': ADS1X15.P2,
-            'A3': ADS1X15.P3,
+            'A0': ADS.P0,
+            'A1': ADS.P1,
+            'A2': ADS.P2,
+            'A3': ADS.P3,
         }
         
         print(f"{Colors.BLUE}🔍 Lendo todos os canais analógicos...{Colors.RESET}\n")
@@ -331,14 +329,13 @@ def test_ads1115_pressure_detailed(channel_name='A0'):
         import busio
         import adafruit_ads1x15.ads1115 as ADS
         from adafruit_ads1x15.analog_in import AnalogIn
-        import adafruit_ads1x15.ads1x15 as ADS1X15  # Necessário para P0, P1, P2, P3
         
         # Mapear nome do canal para pino
         channel_map = {
-            'A0': ADS1X15.P0,
-            'A1': ADS1X15.P1,
-            'A2': ADS1X15.P2,
-            'A3': ADS1X15.P3,
+            'A0': ADS.P0,
+            'A1': ADS.P1,
+            'A2': ADS.P2,
+            'A3': ADS.P3,
         }
         
         if channel_name not in channel_map:

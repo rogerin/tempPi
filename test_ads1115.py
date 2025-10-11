@@ -34,19 +34,27 @@ def check_i2c_enabled():
     print(f"{Colors.BOLD}{Colors.CYAN}🔍 VERIFICANDO STATUS DO I2C{Colors.RESET}")
     print(f"{Colors.CYAN}{'='*60}{Colors.RESET}")
     
-    # Verificar /boot/config.txt
-    try:
-        with open('/boot/config.txt', 'r') as f:
-            config = f.read()
-            if 'dtparam=i2c_arm=on' in config and not config.find('dtparam=i2c_arm=on') > config.find('#dtparam=i2c_arm=on'):
-                print(f"{Colors.GREEN}✅ I2C habilitado em /boot/config.txt{Colors.RESET}")
-                i2c_config = True
-            else:
-                print(f"{Colors.RED}❌ I2C NÃO habilitado em /boot/config.txt{Colors.RESET}")
-                i2c_config = False
-    except FileNotFoundError:
-        print(f"{Colors.YELLOW}⚠️  Arquivo /boot/config.txt não encontrado{Colors.RESET}")
-        i2c_config = None
+    # Verificar /boot/config.txt ou /boot/firmware/config.txt
+    config_files = ['/boot/firmware/config.txt', '/boot/config.txt']
+    i2c_config = None
+    
+    for config_file in config_files:
+        try:
+            with open(config_file, 'r') as f:
+                config = f.read()
+                if 'dtparam=i2c_arm=on' in config and not config.find('dtparam=i2c_arm=on') > config.find('#dtparam=i2c_arm=on'):
+                    print(f"{Colors.GREEN}✅ I2C habilitado em {config_file}{Colors.RESET}")
+                    i2c_config = True
+                    break
+                else:
+                    print(f"{Colors.RED}❌ I2C NÃO habilitado em {config_file}{Colors.RESET}")
+                    i2c_config = False
+        except FileNotFoundError:
+            print(f"{Colors.YELLOW}⚠️  Arquivo {config_file} não encontrado{Colors.RESET}")
+            continue
+    
+    if i2c_config is None:
+        print(f"{Colors.YELLOW}⚠️  Nenhum arquivo de configuração encontrado{Colors.RESET}")
     
     # Verificar módulos carregados
     try:
@@ -182,7 +190,7 @@ def test_ads1115_pressure():
         ads.gain = 1  # ±4.096V range
         
         # Canal A0
-        channel = AnalogIn(ads, ADS.P0)
+        channel = AnalogIn(ads, 0)  # Canal A0
         print(f"{Colors.GREEN}✅ ADS1115 configurado no canal A0{Colors.RESET}")
         
         print(f"\n{Colors.BLUE}📊 Fazendo 5 leituras do sensor...{Colors.RESET}")
@@ -248,10 +256,10 @@ def scan_all_ads1115_channels(i2c_address=0x48):
         
         # Mapear canais para pinos
         channels = {
-            'A0': ADS.P0,
-            'A1': ADS.P1,
-            'A2': ADS.P2,
-            'A3': ADS.P3,
+            'A0': 0,
+            'A1': 1,
+            'A2': 2,
+            'A3': 3,
         }
         
         print(f"{Colors.BLUE}🔍 Lendo todos os canais analógicos...{Colors.RESET}\n")
@@ -332,10 +340,10 @@ def test_ads1115_pressure_detailed(channel_name='A0'):
         
         # Mapear nome do canal para pino
         channel_map = {
-            'A0': ADS.P0,
-            'A1': ADS.P1,
-            'A2': ADS.P2,
-            'A3': ADS.P3,
+            'A0': 0,
+            'A1': 1,
+            'A2': 2,
+            'A3': 3,
         }
         
         if channel_name not in channel_map:

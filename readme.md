@@ -219,6 +219,8 @@ sudo raspi-config
 # Interface Options -> I2C -> Enable
 ```
 
+**Nota:** Em versões mais recentes do Raspberry Pi OS, o arquivo de configuração pode estar em `/boot/firmware/config.txt` em vez de `/boot/config.txt`.
+
 2. Liste dispositivos I2C:
 ```bash
 sudo i2cdetect -y 1

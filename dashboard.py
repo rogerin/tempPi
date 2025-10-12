@@ -7,6 +7,7 @@ import cv2, numpy as np, random, argparse, time, math, warnings, signal, sqlite3
 from datetime import datetime
 import socketio
 import json
+import threading
 import board
 import busio
 import adafruit_ads1x15.ads1115 as ADS
@@ -710,8 +711,6 @@ def rotate_drum_request(direction, duration=2):
         direction: True = forward, False = reverse
         duration: Tempo de rotação em segundos (padrão: 2s)
     """
-    import threading
-    
     def run_rotation():
         # Atualizar estado para indicar que está girando
         state['actuators']['tambor_ena'] = True

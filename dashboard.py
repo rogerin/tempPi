@@ -120,8 +120,24 @@ def handle_command(data):
         save_settings(state['settings']) # Persiste a configuração
 
     elif command == 'MANUAL_CONTROL':
+        target = payload.get('target')
+        
+        # Controle especial para tambor - gerar pulsos ao invés de estado contínuo
+        if target == 'tambor_fwd':
+            # Girar forward por X segundos
+            duration = payload.get('duration', 2)  # Padrão: 2 segundos
+            rotate_drum_request(direction=True, duration=duration)
+            print(f"MANUAL: Tambor FORWARD por {duration}s")
+            return
+        elif target == 'tambor_rev':
+            # Girar reverse por X segundos
+            duration = payload.get('duration', 2)  # Padrão: 2 segundos
+            rotate_drum_request(direction=False, duration=duration)
+            print(f"MANUAL: Tambor REVERSE por {duration}s")
+            return
+        
+        # Controles normais (ventilador, rosca, etc.) - apenas em Modo Manual
         if state['settings'].get('system_mode', 0) == 1: # Apenas em Modo Manual
-            target = payload.get('target')
             if target in state['actuators']:
                 state['actuators'][target] = bool(payload.get('state'))
                 print(f"MANUAL: {target} = {payload.get('state')}")
@@ -602,6 +618,34 @@ def rotate_drum(direction, duration_seconds):
     GPIO.output(PIN_TAMBOR_ENA, GPIO.HIGH)  # Enable = HIGH (motor desabilitado)
     
     print(f"✅ Tambor girado: {steps} passos em {direction}")
+
+def rotate_drum_request(direction, duration=2):
+    """
+    Processa requisição de rotação do tambor.
+    Roda em thread separada para não bloquear.
+    
+    Args:
+        direction: True = forward, False = reverse
+        duration: Tempo de rotação em segundos (padrão: 2s)
+    """
+    import threading
+    
+    def run_rotation():
+        # Atualizar estado para indicar que está girando
+        state['actuators']['tambor_ena'] = True
+        state['actuators']['tambor_dir'] = direction
+        state['actuators']['tambor_pul'] = True
+        
+        # Executar rotação
+        rotate_drum(direction, duration)
+        
+        # Desligar após rotação
+        state['actuators']['tambor_ena'] = False
+        state['actuators']['tambor_dir'] = False
+        state['actuators']['tambor_pul'] = False
+    
+    thread = threading.Thread(target=run_rotation, daemon=True)
+    thread.start()
 
 def handle_automatic_mode():
     """Gerencia a lógica de controle no modo automático."""

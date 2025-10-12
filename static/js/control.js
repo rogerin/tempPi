@@ -218,6 +218,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const velocidadeTamborSlider = document.getElementById('velocidade_tambor');
     const velocidadeTamborDisplay = document.getElementById('velocidade_tambor_display');
     const velocidadeTamborRpm = document.getElementById('velocidade_tambor_rpm');
+    
+    // Controle de duração do tambor
+    const tamborDurationSlider = document.getElementById('tambor_duration');
+    const tamborDurationDisplay = document.getElementById('tambor_duration_display');
 
     if (velocidadeTamborSlider) {
         velocidadeTamborSlider.addEventListener('input', (e) => {
@@ -230,6 +234,14 @@ document.addEventListener('DOMContentLoaded', function() {
             emitControlEvent('SET_SETTING', { name: 'velocidade_tambor', value: hz });
         });
     }
+    
+    // Controle de duração do tambor
+    if (tamborDurationSlider) {
+        tamborDurationSlider.addEventListener('input', (e) => {
+            const duration = parseFloat(e.target.value);
+            tamborDurationDisplay.textContent = `${duration} segundos`;
+        });
+    }
 
     manualButtons.forEach(button => {
         const id = button.id;
@@ -238,29 +250,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
         button.addEventListener('click', () => {
             if (isDrumFwd) {
-                // Toggle tambor forward
-                const isActive = state.actuators?.tambor_pul && state.actuators?.tambor_dir && state.actuators?.tambor_ena;
-                if (isActive) {
-                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_ena', state: false });
-                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: false });
-                } else {
-                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_ena', state: true });
-                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_dir', state: true });
-                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: true });
-                }
+                // Enviar comando de rotação forward com duração
+                const duration = parseFloat(tamborDurationSlider?.value || 2);
+                emitControlEvent('MANUAL_CONTROL', { target: 'tambor_fwd', state: true, duration: duration });
             } else if (isDrumRev) {
-                // Toggle tambor reverse
-                const isActive = state.actuators?.tambor_pul && !state.actuators?.tambor_dir && state.actuators?.tambor_ena;
-                if (isActive) {
-                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_ena', state: false });
-                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: false });
-                } else {
-                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_ena', state: true });
-                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_dir', state: false });
-                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: true });
-                }
+                // Enviar comando de rotação reverse com duração
+                const duration = parseFloat(tamborDurationSlider?.value || 2);
+                emitControlEvent('MANUAL_CONTROL', { target: 'tambor_rev', state: true, duration: duration });
             } else {
-                // Toggle ventilador ou rosca
+                // Toggle ventilador ou rosca (comportamento normal)
                 const targetMap = {
                     'manual-fan-btn': 'ventilador',
                     'manual-screw-btn': 'motor_rosca'

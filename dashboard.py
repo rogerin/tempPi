@@ -97,7 +97,10 @@ state = {
         'ventilacao_resfriador': False,
         'tambor_dir': False, 'tambor_pul': False, 'tambor_ena': False
     },
-    'timers': {'rosca_cycle_start': None}
+    'timers': {'rosca_cycle_start': None},
+    'resistencia_state': {
+        'min_temp_reached': False  # Flag para rastrear se temperatura mínima foi atingida
+    }
 }
 
 # ============= 3) CLIENTE WEBSOCKET =============
@@ -743,6 +746,8 @@ def handle_automatic_mode():
         state['actuators']['resistencia'] = False
         state['actuators']['motor_rosca'] = False
         state['timers']['rosca_cycle_start'] = None
+        # Resetar estado da resistência quando aquecimento desliga
+        state['resistencia_state']['min_temp_reached'] = False
         
         # ===== CONTROLE AUTOMÁTICO DO TAMBOR =====
         # Parar rotação se está rodando
@@ -758,8 +763,10 @@ def handle_automatic_mode():
     if temp_forno < temp_min:
         state['actuators']['ventilador'] = True
         
-        # Resistência: liga enquanto temperatura < mínima
+        # Resistência: liga quando temperatura < mínima
         state['actuators']['resistencia'] = True
+        # Resetar flag quando temperatura cai abaixo da mínima
+        state['resistencia_state']['min_temp_reached'] = False
         
         # Ciclo rosca - alterna entre ligado/desligado
         on_t = max(1, int(settings.get('tempo_acionamento_rosca', 5)))
@@ -775,6 +782,33 @@ def handle_automatic_mode():
         if not state['actuators'].get('tambor_ena'):
             start_continuous_drum_rotation(direction=True)  # Forward
             print("🔥 Aquecimento ON → Tambor iniciado (avanço contínuo)")
+    
+    elif temp_forno >= temp_min:
+        # Temperatura atingiu ou superou a mínima
+        state['actuators']['ventilador'] = True  # Manter ventilador ligado
+        
+        # Marcar que temperatura mínima foi atingida
+        if not state['resistencia_state']['min_temp_reached']:
+            state['resistencia_state']['min_temp_reached'] = True
+            print(f"🎯 Temperatura mínima atingida: {temp_forno}°C")
+        
+        # Agora pode desligar a resistência
+        state['actuators']['resistencia'] = False
+        
+        # Ciclo rosca - alterna entre ligado/desligado
+        now = time.time()
+        on_t = max(1, int(settings.get('tempo_acionamento_rosca', 5)))
+        off_t = max(1, int(settings.get('tempo_pausa_rosca', 10)))
+        cycle = on_t + off_t
+        if state['timers']['rosca_cycle_start'] is None:
+            state['timers']['rosca_cycle_start'] = now
+        elapsed_rosca = (now - state['timers']['rosca_cycle_start']) % cycle
+        state['actuators']['motor_rosca'] = (elapsed_rosca < on_t)
+        
+        # Tambor: manter rotação contínua se está rodando
+        if not state['actuators'].get('tambor_ena'):
+            start_continuous_drum_rotation(direction=True)  # Forward
+            print("🔥 Aquecimento ON → Tambor iniciado (avanço contínuo)")
         
     elif temp_forno > temp_max:
         state['actuators']['ventilador'] = False
@@ -782,6 +816,8 @@ def handle_automatic_mode():
         state['actuators']['motor_rosca'] = False
         # Resetar timer da rosca para próximo ciclo
         state['timers']['rosca_cycle_start'] = None
+        # Resetar estado da resistência quando temperatura muito alta
+        state['resistencia_state']['min_temp_reached'] = False
 
 def noise(val, amp): return random.uniform(-amp, amp)
 

@@ -63,7 +63,7 @@
                 <h5><i class="fas fa-thermometer-half text-danger"></i> Temperatura</h5>
             </div>
             <div class="card-body">
-                <canvas id="temperature-chart" width="400" height="300"></canvas>
+                <canvas id="temperature-chart" width="400" height="300" style="height: 300px;"></canvas>
                 <div class="mt-2">
                     <small class="text-muted">
                         <span class="badge bg-danger">Atual:</span> 
@@ -83,7 +83,7 @@
                 <h5><i class="fas fa-tachometer-alt text-primary"></i> Pressão</h5>
             </div>
             <div class="card-body">
-                <canvas id="pressure-chart" width="400" height="300"></canvas>
+                <canvas id="pressure-chart" width="400" height="300" style="height: 300px;"></canvas>
                 <div class="mt-2">
                     <small class="text-muted">
                         <span class="badge bg-primary">Atual:</span> 
@@ -105,7 +105,7 @@
                 <h5><i class="fas fa-tachometer-alt text-success"></i> Velocidade</h5>
             </div>
             <div class="card-body">
-                <canvas id="velocity-chart" width="400" height="300"></canvas>
+                <canvas id="velocity-chart" width="400" height="300" style="height: 300px;"></canvas>
                 <div class="mt-2">
                     <small class="text-muted">
                         <span class="badge bg-success">Atual:</span> 
@@ -203,4 +203,24 @@
     const sensorName = "{{ sensor_name }}";
 </script>
 <script src="{{ url_for('static', filename='js/sensor_detail.js') }}"></script>
+<style>
+    /* Garantir altura fixa para os gráficos */
+    .card-body canvas {
+        max-height: 300px !important;
+        height: 300px !important;
+    }
+    
+    /* Container dos gráficos com altura fixa */
+    .card-body {
+        position: relative;
+    }
+    
+    /* Responsividade para telas menores */
+    @media (max-width: 768px) {
+        .card-body canvas {
+            height: 250px !important;
+            max-height: 250px !important;
+        }
+    }
+</style>
 {% endblock %}

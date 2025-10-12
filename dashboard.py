@@ -122,18 +122,29 @@ def handle_command(data):
     elif command == 'MANUAL_CONTROL':
         target = payload.get('target')
         
-        # Controle especial para tambor - gerar pulsos ao invés de estado contínuo
+        # Controle do tambor - modo contínuo
         if target == 'tambor_fwd':
-            # Girar forward por X segundos
-            duration = payload.get('duration', 2)  # Padrão: 2 segundos
-            rotate_drum_request(direction=True, duration=duration)
-            print(f"MANUAL: Tambor FORWARD por {duration}s")
+            # Verificar se já está rodando forward
+            if state['actuators'].get('tambor_ena') and state['actuators'].get('tambor_dir'):
+                # Já está em forward, parar
+                stop_continuous_drum_rotation()
+                print(f"MANUAL: Tambor parado")
+            else:
+                # Iniciar rotação contínua forward
+                start_continuous_drum_rotation(direction=True)
+                print(f"MANUAL: Tambor FORWARD contínuo")
             return
+        
         elif target == 'tambor_rev':
-            # Girar reverse por X segundos
-            duration = payload.get('duration', 2)  # Padrão: 2 segundos
-            rotate_drum_request(direction=False, duration=duration)
-            print(f"MANUAL: Tambor REVERSE por {duration}s")
+            # Verificar se já está rodando reverse
+            if state['actuators'].get('tambor_ena') and not state['actuators'].get('tambor_dir'):
+                # Já está em reverse, parar
+                stop_continuous_drum_rotation()
+                print(f"MANUAL: Tambor parado")
+            else:
+                # Iniciar rotação contínua reverse
+                start_continuous_drum_rotation(direction=False)
+                print(f"MANUAL: Tambor REVERSE contínuo")
             return
         
         # Controles normais (ventilador, rosca, etc.) - apenas em Modo Manual
@@ -619,6 +630,77 @@ def rotate_drum(direction, duration_seconds):
     
     print(f"✅ Tambor girado: {steps} passos em {direction}")
 
+# Variável global para controlar thread de rotação contínua
+_drum_rotation_thread = None
+_drum_rotation_active = False
+
+def start_continuous_drum_rotation(direction):
+    """
+    Inicia rotação contínua do tambor.
+    
+    Args:
+        direction: True = forward, False = reverse
+    """
+    global _drum_rotation_thread, _drum_rotation_active
+    
+    # Se já está rodando, parar primeiro
+    stop_continuous_drum_rotation()
+    
+    if not (USE_RPI and _rpi_ready):
+        print(f"SIMUL: Rotação contínua {'FORWARD' if direction else 'REVERSE'}")
+        _drum_rotation_active = True
+        state['actuators']['tambor_ena'] = True
+        state['actuators']['tambor_dir'] = direction
+        state['actuators']['tambor_pul'] = True
+        return
+    
+    def run_continuous():
+        global _drum_rotation_active
+        _drum_rotation_active = True
+        
+        velocidade = state['settings'].get('velocidade_tambor', 1000)  # Hz
+        delay = 1.0 / (velocidade * 2)
+        
+        # Habilitar motor
+        GPIO.output(PIN_TAMBOR_ENA, GPIO.LOW)  # Enable
+        GPIO.output(PIN_TAMBOR_DIR, direction)  # Direção
+        time.sleep(0.001)
+        
+        print(f"🔄 Rotação contínua iniciada: {'FORWARD' if direction else 'REVERSE'} @ {velocidade} Hz")
+        
+        # Loop contínuo de pulsos
+        while _drum_rotation_active:
+            GPIO.output(PIN_TAMBOR_PUL, GPIO.LOW)
+            time.sleep(delay)
+            GPIO.output(PIN_TAMBOR_PUL, GPIO.HIGH)
+            time.sleep(delay)
+        
+        # Desabilitar motor ao parar
+        GPIO.output(PIN_TAMBOR_ENA, GPIO.HIGH)
+        print("⏹️  Rotação contínua parada")
+    
+    # Atualizar estado
+    state['actuators']['tambor_ena'] = True
+    state['actuators']['tambor_dir'] = direction
+    state['actuators']['tambor_pul'] = True
+    
+    # Iniciar thread
+    _drum_rotation_thread = threading.Thread(target=run_continuous, daemon=True)
+    _drum_rotation_thread.start()
+
+def stop_continuous_drum_rotation():
+    """Para a rotação contínua do tambor."""
+    global _drum_rotation_active
+    
+    if _drum_rotation_active:
+        _drum_rotation_active = False
+        time.sleep(0.1)  # Aguardar thread parar
+        
+        # Atualizar estado
+        state['actuators']['tambor_ena'] = False
+        state['actuators']['tambor_dir'] = False
+        state['actuators']['tambor_pul'] = False
+
 def rotate_drum_request(direction, duration=2):
     """
     Processa requisição de rotação do tambor.
@@ -659,6 +741,12 @@ def handle_automatic_mode():
         state['actuators']['motor_rosca'] = False
         state['timers']['resistencia_start_time'] = None
         state['timers']['rosca_cycle_start'] = None
+        
+        # ===== CONTROLE AUTOMÁTICO DO TAMBOR =====
+        # Parar rotação se está rodando
+        if state['actuators'].get('tambor_ena'):
+            stop_continuous_drum_rotation()
+            print("❄️  Aquecimento OFF → Tambor parado")
         return
 
     temp_forno = values["Temp Forno"]
@@ -684,6 +772,12 @@ def handle_automatic_mode():
             state['timers']['rosca_cycle_start'] = now
         elapsed_rosca = (now - state['timers']['rosca_cycle_start']) % cycle
         state['actuators']['motor_rosca'] = (elapsed_rosca < on_t)
+        
+        # ===== CONTROLE AUTOMÁTICO DO TAMBOR =====
+        # Iniciar rotação contínua se ainda não está rodando
+        if not state['actuators'].get('tambor_ena'):
+            start_continuous_drum_rotation(direction=True)  # Forward
+            print("🔥 Aquecimento ON → Tambor iniciado (avanço contínuo)")
         
     elif temp_forno > temp_max:
         state['actuators']['ventilador'] = False

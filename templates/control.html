@@ -2,6 +2,10 @@
 
 {% block title %}Controle do Sistema - TempPi{% endblock %}
 
+{% block footer %}
+<!-- Rodapé removido para página de controle -->
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-12">
@@ -269,6 +273,86 @@
 
 <style>
     /* #manual-controls.disabled - Removido para manter botões sempre habilitados */
+    
+    /* Full height para página de controle */
+    html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+    }
+    
+    main {
+        min-height: calc(100vh - 60px); /* 60px = altura do navbar */
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .container {
+        flex: 1;
+    }
+    
+    /* Textos maiores para melhor legibilidade */
+    h1 { 
+        font-size: 2.5rem !important; 
+        font-weight: 700 !important;
+    }
+    
+    h5, h6 { 
+        font-size: 1.5rem !important; 
+        font-weight: 600 !important;
+    }
+    
+    .card-title { 
+        font-size: 1.3rem !important; 
+        font-weight: 600 !important;
+    }
+    
+    .display_temp { 
+        font-size: 2rem !important; 
+        font-weight: 700 !important;
+    }
+    
+    .btn { 
+        font-size: 1.2rem !important; 
+        padding: 0.8rem 1.5rem !important;
+        font-weight: 500 !important;
+    }
+    
+    small { 
+        font-size: 1rem !important; 
+    }
+    
+    /* Valores em tempo real maiores */
+    .h6 { 
+        font-size: 1.8rem !important; 
+        font-weight: 700 !important;
+    }
+    
+    .display-1 { 
+        font-size: 3rem !important; 
+        font-weight: 700 !important;
+    }
+    
+    /* Aumentar espaçamento entre cards */
+    .card {
+        margin-bottom: 1.5rem;
+    }
+    
+    /* Aumentar padding interno dos cards */
+    .card-body {
+        padding: 1.5rem;
+    }
+    
+    /* Melhorar legibilidade dos badges */
+    .badge {
+        font-size: 0.9rem !important;
+        padding: 0.5rem 0.8rem !important;
+    }
+    
+    /* Aumentar tamanho dos ícones */
+    .fas, .far {
+        font-size: 1.2em !important;
+    }
 </style>
 
 {% endblock %}

@@ -203,6 +203,10 @@ def test_ads1115_pressure():
                 psi = 0.0
             else:
                 psi = (voltage - 0.5) * 7.5  # 30/4.0 = 7.5
+                
+                # CALIBRAÇÃO: Fator de correção
+                CALIBRATION_FACTOR = 1.553
+                psi = psi * CALIBRATION_FACTOR
                 psi = max(0.0, psi)
             
             readings.append((voltage, psi))
@@ -370,6 +374,10 @@ def test_ads1115_pressure_detailed(channel_name='A0'):
                 psi = 0.0
             else:
                 psi = (voltage - 0.5) * 7.5  # 30/4.0 = 7.5
+                
+                # CALIBRAÇÃO: Fator de correção
+                CALIBRATION_FACTOR = 1.553
+                psi = psi * CALIBRATION_FACTOR
                 psi = max(0.0, psi)
             
             readings.append((voltage, psi))

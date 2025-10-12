@@ -234,7 +234,7 @@ class PressureSensorADS1115:
             raise ValueError("Canal inválido (use 0-3)")
     
     def read_pressure_psi(self):
-        """Lê pressão em PSI"""
+        """Lê pressão em PSI com calibração"""
         try:
             voltage = self.channel.voltage
             # Sensor: 0.5V=0PSI, 4.5V=30PSI
@@ -242,7 +242,14 @@ class PressureSensorADS1115:
             if voltage < 0.4:  # Abaixo do mínimo esperado
                 return 0.0
             psi = (voltage - 0.5) * 7.5  # 30/4.0 = 7.5
-            return max(0.0, round(psi, 2))
+            
+            # CALIBRAÇÃO: Fator de correção baseado em medição real
+            # Medido: 19.32 PSI quando real era 30.00 PSI
+            # Fator: 30.00 / 19.32 = 1.553
+            CALIBRATION_FACTOR = 1.553
+            psi_calibrated = psi * CALIBRATION_FACTOR
+            
+            return max(0.0, round(psi_calibrated, 2))
         except Exception as e:
             raise Exception(f"Erro ao ler pressão: {e}")
 

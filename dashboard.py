@@ -97,7 +97,7 @@ state = {
         'ventilacao_resfriador': False,
         'tambor_dir': False, 'tambor_pul': False, 'tambor_ena': False
     },
-    'timers': {'resistencia_start_time': None, 'rosca_cycle_start': None}
+    'timers': {'rosca_cycle_start': None}
 }
 
 # ============= 3) CLIENTE WEBSOCKET =============
@@ -742,7 +742,6 @@ def handle_automatic_mode():
         state['actuators']['ventilador'] = False
         state['actuators']['resistencia'] = False
         state['actuators']['motor_rosca'] = False
-        state['timers']['resistencia_start_time'] = None
         state['timers']['rosca_cycle_start'] = None
         
         # ===== CONTROLE AUTOMÁTICO DO TAMBOR =====
@@ -759,13 +758,8 @@ def handle_automatic_mode():
     if temp_forno < temp_min:
         state['actuators']['ventilador'] = True
         
-        # Timer resistência - liga por tempo determinado, depois desliga permanentemente
-        now = time.time()
-        resistencia_duration = max(1, int(settings.get('tempo_acionamento_resistencia', 10)))
-        if state['timers']['resistencia_start_time'] is None:
-            state['timers']['resistencia_start_time'] = now
-        elapsed_resistencia = now - state['timers']['resistencia_start_time']
-        state['actuators']['resistencia'] = (elapsed_resistencia < resistencia_duration)
+        # Resistência: liga enquanto temperatura < mínima
+        state['actuators']['resistencia'] = True
         
         # Ciclo rosca - alterna entre ligado/desligado
         on_t = max(1, int(settings.get('tempo_acionamento_rosca', 5)))
@@ -786,8 +780,7 @@ def handle_automatic_mode():
         state['actuators']['ventilador'] = False
         state['actuators']['resistencia'] = False
         state['actuators']['motor_rosca'] = False
-        # Resetar timers para próximo ciclo
-        state['timers']['resistencia_start_time'] = None
+        # Resetar timer da rosca para próximo ciclo
         state['timers']['rosca_cycle_start'] = None
 
 def noise(val, amp): return random.uniform(-amp, amp)

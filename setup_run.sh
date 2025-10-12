@@ -105,19 +105,23 @@ done
 
 echo -e "${GREEN}=== Servidor disponível em http://localhost:3333 ===${NC}"
 
-# Abrir navegador automaticamente (em background para não bloquear)
-echo -e "${BLUE}🌐 Abrindo navegador...${NC}"
+# Abrir navegador automaticamente em modo fullscreen (em background para não bloquear)
+echo -e "${BLUE}🌐 Abrindo navegador em modo fullscreen...${NC}"
 (
     sleep 2  # Aguardar 2 segundos para garantir que está pronto
     if [ "$(uname)" == "Darwin" ]; then
-        # macOS
-        open http://localhost:3333 2>/dev/null
+        # macOS - tentar Chrome em modo app primeiro
+        if [ -f "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ]; then
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --app=http://localhost:3333 2>/dev/null &
+        else
+            open http://localhost:3333 2>/dev/null
+        fi
     elif [ "$(uname)" == "Linux" ]; then
-        # Linux
-        xdg-open http://localhost:3333 2>/dev/null || \
-        firefox http://localhost:3333 2>/dev/null || \
-        chromium-browser http://localhost:3333 2>/dev/null || \
-        google-chrome http://localhost:3333 2>/dev/null
+        # Linux - priorizar modo kiosk
+        chromium-browser --kiosk --app=http://localhost:3333 2>/dev/null || \
+        google-chrome --kiosk --app=http://localhost:3333 2>/dev/null || \
+        firefox --kiosk http://localhost:3333 2>/dev/null || \
+        xdg-open http://localhost:3333 2>/dev/null
     fi
 ) &
 

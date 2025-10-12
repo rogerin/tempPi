@@ -769,6 +769,7 @@ def handle_automatic_mode():
         state['resistencia_state']['min_temp_reached'] = False
         
         # Ciclo rosca - alterna entre ligado/desligado
+        now = time.time()
         on_t = max(1, int(settings.get('tempo_acionamento_rosca', 5)))
         off_t = max(1, int(settings.get('tempo_pausa_rosca', 10)))
         cycle = on_t + off_t

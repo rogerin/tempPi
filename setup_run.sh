@@ -43,9 +43,55 @@ trap cleanup INT TERM
 PROJ_DIR=$(dirname "$0")
 cd "$PROJ_DIR" || { echo -e "${RED}Erro ao acessar diretório do projeto${NC}"; exit 1; }
 
+# Flag para forçar reinstalação
+FORCE_INSTALL=false
+if [ "$1" == "--force-install" ]; then
+    FORCE_INSTALL=true
+fi
+
+# Função para verificar conexão com internet
+check_internet() {
+    if ping -c 1 8.8.8.8 >/dev/null 2>&1 || ping -c 1 1.1.1.1 >/dev/null 2>&1; then
+        return 0  # Tem internet
+    else
+        return 1  # Sem internet
+    fi
+}
+
+# Função para verificar dependências instaladas
+check_dependencies() {
+    echo "Verificando dependências instaladas..."
+    
+    # Pacotes essenciais
+    REQUIRED_PACKAGES=("flask" "flask-socketio" "numpy" "opencv-python" "python-socketio")
+    MISSING_PACKAGES=()
+    
+    for package in "${REQUIRED_PACKAGES[@]}"; do
+        if ! pip show "$package" >/dev/null 2>&1; then
+            MISSING_PACKAGES+=("$package")
+        fi
+    done
+    
+    if [ ${#MISSING_PACKAGES[@]} -eq 0 ]; then
+        echo "✓ Todas as dependências já estão instaladas"
+        return 0
+    else
+        echo "✗ Pacotes faltando: ${MISSING_PACKAGES[*]}"
+        return 1
+    fi
+}
+
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}    TempPi Dashboard - Setup & Run     ${NC}"
 echo -e "${BLUE}========================================${NC}"
+
+# Mostrar opções disponíveis
+if [ "$FORCE_INSTALL" = true ]; then
+    echo -e "${YELLOW}🔧 Modo: Forçar reinstalação de dependências${NC}"
+else
+    echo -e "${GREEN}🚀 Modo: Verificação inteligente de dependências${NC}"
+    echo -e "${BLUE}💡 Use './setup_run.sh --force-install' para forçar reinstalação${NC}"
+fi
 
 echo -e "${GREEN}=== Verificando ambiente virtual (.venv) ===${NC}"
 if [ ! -d ".venv" ]; then
@@ -61,18 +107,42 @@ if [ "$(uname)" == "Darwin" ]; then
     pip install --no-cache-dir --force-reinstall --upgrade --only-binary=:all: numpy opencv-python
 fi
 
-echo -e "${GREEN}=== Instalando dependências ===${NC}"
-pip install --upgrade pip -q
+echo -e "${GREEN}=== Verificando dependências ===${NC}"
 
-# Exclui RPi.GPIO e bibliotecas Adafruit em não-Linux
-if [ "$(uname)" != "Linux" ]; then
-    echo -e "${YELLOW}Ambiente não-Linux detectado. RPi.GPIO e bibliotecas Adafruit serão ignorados.${NC}"
-    grep -v "RPi.GPIO" requirements.txt | grep -v "adafruit-" > requirements_temp.txt
-    pip install -r requirements_temp.txt -q
-    rm requirements_temp.txt
+if [ "$FORCE_INSTALL" = true ]; then
+    echo -e "${YELLOW}Flag --force-install detectada. Forçando reinstalação...${NC}"
+    pip install --upgrade pip -q
+    
+    if [ "$(uname)" != "Linux" ]; then
+        echo -e "${YELLOW}Ambiente não-Linux detectado. RPi.GPIO e bibliotecas Adafruit serão ignorados.${NC}"
+        grep -v "RPi.GPIO" requirements.txt | grep -v "adafruit-" > requirements_temp.txt
+        pip install -r requirements_temp.txt -q
+        rm requirements_temp.txt
+    else
+        echo -e "${GREEN}Ambiente Linux detectado.${NC}"
+        pip install -r requirements.txt -q
+    fi
+elif check_dependencies; then
+    echo -e "${GREEN}✓ Dependências OK. Pulando instalação.${NC}"
 else
-    echo -e "${GREEN}Ambiente Linux detectado.${NC}"
-    pip install -r requirements.txt -q
+    if check_internet; then
+        echo -e "${YELLOW}Instalando dependências faltantes...${NC}"
+        pip install --upgrade pip -q
+        
+        if [ "$(uname)" != "Linux" ]; then
+            echo -e "${YELLOW}Ambiente não-Linux detectado. RPi.GPIO e bibliotecas Adafruit serão ignorados.${NC}"
+            grep -v "RPi.GPIO" requirements.txt | grep -v "adafruit-" > requirements_temp.txt
+            pip install -r requirements_temp.txt -q
+            rm requirements_temp.txt
+        else
+            echo -e "${GREEN}Ambiente Linux detectado.${NC}"
+            pip install -r requirements.txt -q
+        fi
+    else
+        echo -e "${RED}⚠️  AVISO: Sem conexão com internet e dependências faltando!${NC}"
+        echo -e "${YELLOW}Tentando continuar com pacotes disponíveis...${NC}"
+        echo -e "${BLUE}💡 Dica: Execute './setup_run.sh --force-install' quando tiver internet${NC}"
+    fi
 fi
 
 # Flag RPi

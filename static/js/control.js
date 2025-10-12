@@ -10,7 +10,8 @@ document.addEventListener('DOMContentLoaded', function() {
             resistencia: false,
             motor_rosca: false,
             tambor_dir: false,
-            tambor_pul: false
+            tambor_pul: false,
+            tambor_ena: false
         }
     };
 
@@ -74,6 +75,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Atualizar botão de aquecimento
         const currentHeatingStatus = state.settings['heating_status'] || 0;
         updateHeatingButton(currentHeatingStatus);
+        
+        // Atualizar botões do tambor
+        updateDrumButtons();
 
         // Atualizar estado dos botões manuais
         if(currentMode == 1) {
@@ -106,13 +110,18 @@ document.addEventListener('DOMContentLoaded', function() {
             'Torre Nível 2': 'display_temp_torre2', 
             'Torre Nível 3': 'display_temp_torre3',
             'Temp Tanque': 'display_temp_tanque',
-            'Temp Saída Gases': 'display_temp_gases'
+            'Temp Saída Gases': 'display_temp_gases',
+            'Pressão Gases': 'display_pressao_gases'
         };
 
         Object.entries(sensorMapping).forEach(([sensorName, displayId]) => {
             const element = document.getElementById(displayId);
             if (element && values[sensorName] !== undefined) {
-                element.textContent = `${values[sensorName].toFixed(1)} °C`;
+                if (sensorName === 'Pressão Gases') {
+                    element.textContent = `${values[sensorName].toFixed(2)} PSI`;
+                } else {
+                    element.textContent = `${values[sensorName].toFixed(1)} °C`;
+                }
             }
         });
     }
@@ -222,19 +231,23 @@ document.addEventListener('DOMContentLoaded', function() {
         button.addEventListener('click', () => {
             if (isDrumFwd) {
                 // Toggle tambor forward
-                const isActive = state.actuators?.tambor_pul && state.actuators?.tambor_dir;
+                const isActive = state.actuators?.tambor_pul && state.actuators?.tambor_dir && state.actuators?.tambor_ena;
                 if (isActive) {
+                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_ena', state: false });
                     emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: false });
                 } else {
+                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_ena', state: true });
                     emitControlEvent('MANUAL_CONTROL', { target: 'tambor_dir', state: true });
                     emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: true });
                 }
             } else if (isDrumRev) {
                 // Toggle tambor reverse
-                const isActive = state.actuators?.tambor_pul && !state.actuators?.tambor_dir;
+                const isActive = state.actuators?.tambor_pul && !state.actuators?.tambor_dir && state.actuators?.tambor_ena;
                 if (isActive) {
+                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_ena', state: false });
                     emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: false });
                 } else {
+                    emitControlEvent('MANUAL_CONTROL', { target: 'tambor_ena', state: true });
                     emitControlEvent('MANUAL_CONTROL', { target: 'tambor_dir', state: false });
                     emitControlEvent('MANUAL_CONTROL', { target: 'tambor_pul', state: true });
                 }
@@ -253,9 +266,30 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Atualizar estado visual dos botões do tambor
+    function updateDrumButtons() {
+        const fwdBtn = document.getElementById('manual-drum-fwd-btn');
+        const revBtn = document.getElementById('manual-drum-rev-btn');
+        
+        if (fwdBtn && revBtn && state.actuators) {
+            const isFwdActive = state.actuators.tambor_pul && state.actuators.tambor_dir && state.actuators.tambor_ena;
+            const isRevActive = state.actuators.tambor_pul && !state.actuators.tambor_dir && state.actuators.tambor_ena;
+            
+            fwdBtn.classList.toggle('active', isFwdActive);
+            revBtn.classList.toggle('active', isRevActive);
+        }
+    }
+
     // Funções auxiliares da UI
     function toggleManualControls(isManual) {
-        manualControls.classList.toggle('disabled', !isManual);
+        // Desabilita todos os controles manuais exceto o tambor
+        const allControls = manualControls.querySelectorAll('button');
+        allControls.forEach(btn => {
+            const isDrumButton = btn.id === 'manual-drum-fwd-btn' || btn.id === 'manual-drum-rev-btn';
+            if (!isDrumButton) {
+                btn.disabled = !isManual;
+            }
+        });
     }
 
     function updateHeatingButton(status) {

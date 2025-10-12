@@ -104,6 +104,23 @@ for i in {1..10}; do
 done
 
 echo -e "${GREEN}=== Servidor disponível em http://localhost:3333 ===${NC}"
+
+# Abrir navegador automaticamente (em background para não bloquear)
+echo -e "${BLUE}🌐 Abrindo navegador...${NC}"
+(
+    sleep 2  # Aguardar 2 segundos para garantir que está pronto
+    if [ "$(uname)" == "Darwin" ]; then
+        # macOS
+        open http://localhost:3333 2>/dev/null
+    elif [ "$(uname)" == "Linux" ]; then
+        # Linux
+        xdg-open http://localhost:3333 2>/dev/null || \
+        firefox http://localhost:3333 2>/dev/null || \
+        chromium-browser http://localhost:3333 2>/dev/null || \
+        google-chrome http://localhost:3333 2>/dev/null
+    fi
+) &
+
 echo -e "${YELLOW}=== Iniciando Dashboard ===${NC}"
 echo -e "${BLUE}Pressione Ctrl+C para parar ambos os processos${NC}"
 python3 dashboard.py --img assets/base.jpeg $USE_RPI_FLAG 2>&1 | tee logs/dashboard.log

@@ -282,14 +282,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Funções auxiliares da UI
     function toggleManualControls(isManual) {
-        // Desabilita todos os controles manuais exceto o tambor
-        const allControls = manualControls.querySelectorAll('button');
-        allControls.forEach(btn => {
-            const isDrumButton = btn.id === 'manual-drum-fwd-btn' || btn.id === 'manual-drum-rev-btn';
-            if (!isDrumButton) {
-                btn.disabled = !isManual;
-            }
-        });
+        // Todos os botões permanecem habilitados (sem desabilitar nada)
+        // Mantém a função para compatibilidade, mas não aplica disabled
     }
 
     function updateHeatingButton(status) {

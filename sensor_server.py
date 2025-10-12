@@ -77,6 +77,11 @@ def sensor_detail(sensor_name):
     """Página de detalhes de um sensor específico."""
     return render_template('sensor_detail.html', sensor_name=sensor_name)
 
+@app.route('/sensor/all')
+def all_sensors():
+    """Página de visualização de todos os sensores em um gráfico único."""
+    return render_template('all_sensors.html')
+
 @app.route('/api/sensors')
 def api_sensors():
     """Retorna uma lista única de nomes de sensores."""
@@ -296,6 +301,77 @@ def api_sensor_data(sensor_name):
                 'sensor_type': row[4],
                 'mode': row[5]
             })
+        
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/all-sensors/data')
+def api_all_sensors_data():
+    """Retorna dados históricos de todos os sensores combinados."""
+    try:
+        hours = int(request.args.get('hours', 24))
+        start_time = f"datetime('now', '-{hours} hours')"
+        
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Buscar dados de todos os sensores no período
+        cursor.execute(f"""
+            SELECT timestamp, sensor_name, temperature, pressure, velocity, sensor_type, mode
+            FROM sensor_readings
+            WHERE timestamp >= {start_time}
+            ORDER BY timestamp ASC
+        """)
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # Organizar dados por timestamp
+        data_by_time = {}
+        for row in rows:
+            timestamp = row[0]
+            sensor_name = row[1]
+            temperature = row[2]
+            pressure = row[3]
+            velocity = row[4]
+            sensor_type = row[5]
+            mode = row[6]
+            
+            if timestamp not in data_by_time:
+                data_by_time[timestamp] = {
+                    'timestamp': timestamp,
+                    'temp_forno': None,
+                    'torre_nivel_1': None,
+                    'torre_nivel_2': None,
+                    'torre_nivel_3': None,
+                    'temp_tanque': None,
+                    'temp_gases': None,
+                    'pressao_gases': None,
+                    'velocity': None,
+                    'mode': mode
+                }
+            
+            # Mapear nomes dos sensores para campos padronizados
+            if sensor_name == 'Temp Forno':
+                data_by_time[timestamp]['temp_forno'] = temperature
+            elif sensor_name == 'Torre Nível 1':
+                data_by_time[timestamp]['torre_nivel_1'] = temperature
+            elif sensor_name == 'Torre Nível 2':
+                data_by_time[timestamp]['torre_nivel_2'] = temperature
+            elif sensor_name == 'Torre Nível 3':
+                data_by_time[timestamp]['torre_nivel_3'] = temperature
+            elif sensor_name == 'Temp Tanque':
+                data_by_time[timestamp]['temp_tanque'] = temperature
+            elif sensor_name == 'Temp Saída Gases':
+                data_by_time[timestamp]['temp_gases'] = temperature
+            elif sensor_name == 'Pressão Gases':
+                data_by_time[timestamp]['pressao_gases'] = pressure
+            elif sensor_name == 'Velocidade':
+                data_by_time[timestamp]['velocity'] = velocity
+        
+        # Converter para lista ordenada
+        data = list(data_by_time.values())
         
         return jsonify(data)
     except Exception as e:

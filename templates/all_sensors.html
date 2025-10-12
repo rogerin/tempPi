@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Todos os Sensores - TempPi{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-chart-line"></i> Todos os Sensores
+            <a href="/" class="btn btn-outline-secondary btn-sm float-end">
+                <i class="fas fa-arrow-left"></i> Voltar
+            </a>
+        </h1>
+    </div>
+</div>
+
+<!-- Controles do Gráfico -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label">Período</label>
+                        <select class="form-select" id="time-range">
+                            <option value="1">Última 1 hora</option>
+                            <option value="6">Últimas 6 horas</option>
+                            <option value="24" selected>Últimas 24 horas</option>
+                            <option value="72">Últimos 3 dias</option>
+                            <option value="168">Última semana</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <label class="form-label">Unidade de Pressão</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="pressure-unit" id="pressure-psi" value="psi" checked>
+                            <label class="btn btn-outline-primary" for="pressure-psi">PSI</label>
+                            
+                            <input type="radio" class="btn-check" name="pressure-unit" id="pressure-bar" value="bar">
+                            <label class="btn btn-outline-primary" for="pressure-bar">BAR</label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <button class="btn btn-primary" id="update-chart">
+                            <i class="fas fa-sync-alt"></i> Atualizar
+                        </button>
+                        <button class="btn btn-success" id="auto-refresh" data-active="false">
+                            <i class="fas fa-play"></i> Auto-refresh
+                        </button>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <div class="text-end">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle"></i> 
+                                Última atualização: <span id="last-update">-</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráfico Principal -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-line"></i> Visualização Consolidada</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="all-sensors-chart" width="800" height="400" style="height: 400px;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estatísticas Resumidas -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="fas fa-thermometer-half text-danger"></i> Temperaturas Atuais</h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-danger">Temp Forno:</span>
+                            <span id="temp-forno-current" class="fw-bold">- °C</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-warning">Torre Nível 1:</span>
+                            <span id="torre-1-current" class="fw-bold">- °C</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-warning">Torre Nível 2:</span>
+                            <span id="torre-2-current" class="fw-bold">- °C</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-warning">Torre Nível 3:</span>
+                            <span id="torre-3-current" class="fw-bold">- °C</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-info">Temp Tanque:</span>
+                            <span id="temp-tanque-current" class="fw-bold">- °C</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-purple">Temp Gases:</span>
+                            <span id="temp-gases-current" class="fw-bold">- °C</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="fas fa-tachometer-alt text-primary"></i> Pressão e Velocidade</h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-primary">Pressão Gases:</span>
+                            <span id="pressao-current" class="fw-bold">- PSI</span>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-success">Velocidade:</span>
+                            <span id="velocity-current" class="fw-bold">- rpm</span>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Modo:</span>
+                            <span id="mode-current" class="fw-bold">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dados Recentes -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-list"></i> Dados Recentes</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Temp Forno</th>
+                                <th>Torre 1</th>
+                                <th>Torre 2</th>
+                                <th>Torre 3</th>
+                                <th>Temp Tanque</th>
+                                <th>Temp Gases</th>
+                                <th>Pressão</th>
+                                <th>Velocidade</th>
+                                <th>Modo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-data">
+                            <!-- Carregado via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/all_sensors.js') }}"></script>
+<style>
+    /* Garantir altura fixa para o gráfico */
+    .card-body canvas {
+        max-height: 400px !important;
+        height: 400px !important;
+    }
+    
+    /* Container dos gráficos com altura fixa */
+    .card-body {
+        position: relative;
+    }
+    
+    /* Responsividade para telas menores */
+    @media (max-width: 768px) {
+        .card-body canvas {
+            height: 300px !important;
+            max-height: 300px !important;
+        }
+    }
+    
+    /* Cores para as legendas */
+    .text-purple {
+        color: #6f42c1 !important;
+    }
+</style>
+{% endblock %}

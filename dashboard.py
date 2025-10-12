@@ -42,6 +42,7 @@ ap.add_argument("--pressao2-pin", type=int, default=3, help="Pino GPIO para Sens
 ap.add_argument("--ventilador-pin", type=int, default=14, help="Pino GPIO para controle do Ventilador (padrão: 14)")
 ap.add_argument("--resistencia-pin", type=int, default=26, help="Pino GPIO para controle da Resistência (padrão: 26)")
 ap.add_argument("--motor-rosca-pin", type=int, default=12, help="Pino GPIO para Motor Rosca Alimentação (padrão: 12)")
+ap.add_argument("--ventilacao-resfriador-pin", type=int, default=13, help="Pino GPIO para Ventilação Resfriador (padrão: 13)")
 ap.add_argument("--tambor-dir-pin", type=int, default=6, help="Pino GPIO para DIR+ Driver Motor Tambor (padrão: 6)")
 ap.add_argument("--tambor-pul-pin", type=int, default=19, help="Pino GPIO para PUL+ Driver Motor Tambor (padrão: 19)")
 ap.add_argument("--tambor-ena-pin", type=int, default=5, help="Pino GPIO para ENA+ Driver Motor Tambor (padrão: 5)")
@@ -62,6 +63,7 @@ PRESSAO_2_PIN = args.pressao2_pin
 PIN_VENTILADOR = args.ventilador_pin
 PIN_RESISTENCIA = args.resistencia_pin
 PIN_MOTOR_ROSCA = args.motor_rosca_pin
+PIN_VENTILACAO_RESFRIADOR = args.ventilacao_resfriador_pin
 PIN_TAMBOR_DIR  = args.tambor_dir_pin
 PIN_TAMBOR_PUL  = args.tambor_pul_pin
 PIN_TAMBOR_ENA  = args.tambor_ena_pin  # NOVO
@@ -92,6 +94,7 @@ state = {
     'values': {},
     'actuators': {
         'ventilador': False, 'resistencia': False, 'motor_rosca': False,
+        'ventilacao_resfriador': False,
         'tambor_dir': False, 'tambor_pul': False, 'tambor_ena': False
     },
     'timers': {'resistencia_start_time': None, 'rosca_cycle_start': None}
@@ -431,7 +434,7 @@ if USE_RPI:
     try:
         import RPi.GPIO as GPIO
         GPIO.setmode(GPIO.BCM)
-        output_pins = [PIN_VENTILADOR, PIN_RESISTENCIA, PIN_MOTOR_ROSCA, PIN_TAMBOR_DIR, PIN_TAMBOR_PUL, PIN_TAMBOR_ENA]
+        output_pins = [PIN_VENTILADOR, PIN_RESISTENCIA, PIN_MOTOR_ROSCA, PIN_VENTILACAO_RESFRIADOR, PIN_TAMBOR_DIR, PIN_TAMBOR_PUL, PIN_TAMBOR_ENA]
         for pin in output_pins:
             GPIO.setup(pin, GPIO.OUT, initial=GPIO.HIGH)  # Relés desligados ao iniciar
         # Configurar motor de passo (desabilitado inicialmente)
@@ -579,13 +582,14 @@ def apply_actuator_state():
         GPIO.output(PIN_VENTILADOR, not state['actuators']['ventilador'])
         GPIO.output(PIN_RESISTENCIA, not state['actuators']['resistencia'])
         GPIO.output(PIN_MOTOR_ROSCA, not state['actuators']['motor_rosca'])
+        GPIO.output(PIN_VENTILACAO_RESFRIADOR, not state['actuators']['ventilacao_resfriador'])
         # Tambor: DIR define direção, PUL é o pulso, ENA habilita/desabilita
         GPIO.output(PIN_TAMBOR_DIR, state['actuators'].get('tambor_dir', False))
         GPIO.output(PIN_TAMBOR_PUL, state['actuators'].get('tambor_pul', False))
         GPIO.output(PIN_TAMBOR_ENA, not state['actuators'].get('tambor_ena', False))  # LOW=habilitado
         print(f"GPIO: VENT={not state['actuators']['ventilador']}, RES={not state['actuators']['resistencia']}, "
-              f"ROSCA={not state['actuators']['motor_rosca']}, DIR={state['actuators'].get('tambor_dir', False)}, "
-              f"PUL={state['actuators'].get('tambor_pul', False)}")
+              f"ROSCA={not state['actuators']['motor_rosca']}, RESFR={not state['actuators']['ventilacao_resfriador']}, "
+              f"DIR={state['actuators'].get('tambor_dir', False)}, PUL={state['actuators'].get('tambor_pul', False)}")
     else:
         # Modo simulação - mostrar estado (lógica invertida)
         sim_state = {k: ('LOW' if v else 'HIGH') for k, v in state['actuators'].items()}
@@ -1060,6 +1064,7 @@ def main():
         GPIO.output(PIN_VENTILADOR, GPIO.HIGH)
         GPIO.output(PIN_RESISTENCIA, GPIO.HIGH)
         GPIO.output(PIN_MOTOR_ROSCA, GPIO.HIGH)
+        GPIO.output(PIN_VENTILACAO_RESFRIADOR, GPIO.HIGH)
         GPIO.output(PIN_TAMBOR_DIR, GPIO.HIGH)
         GPIO.output(PIN_TAMBOR_PUL, GPIO.HIGH)
         GPIO.output(PIN_TAMBOR_ENA, GPIO.HIGH)  # Desabilitar motor

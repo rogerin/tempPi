@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
             ventilador: false,
             resistencia: false,
             motor_rosca: false,
+            ventilacao_resfriador: false,
             tambor_dir: false,
             tambor_pul: false,
             tambor_ena: false
@@ -20,11 +21,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const modeRadios = document.querySelectorAll('input[name="system_mode"]');
     const heatingBtn = document.getElementById('heating-status-btn');
     const manualControls = document.getElementById('manual-controls');
-    const manualButtons = document.querySelectorAll('#manual-fan-btn, #manual-screw-btn, #manual-drum-fwd-btn, #manual-drum-rev-btn');
+    const manualButtons = document.querySelectorAll('#manual-fan-btn, #manual-screw-btn, #manual-cooling-btn, #manual-drum-fwd-btn, #manual-drum-rev-btn');
 
     // Conexão WebSocket
     socket.on('connect', () => {
-        console.log('Conectado ao servidor WebSocket!');
         // Solicita os dados mais recentes ao se conectar
         socket.emit('request_initial_data');
         fetchSensorData();
@@ -32,7 +32,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Listener para atualizações do backend
     socket.on('update_from_dashboard', (data) => {
-        console.log('Update recebido:', data);
         updateUI(data);
     });
 
@@ -40,7 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/api/sensors')
             .then(response => response.json())
             .then(data => {
-                console.log('Dados dos sensores recebidos:', data);
+                // Dados dos sensores processados silenciosamente
             })
             .catch(error => console.error('Erro ao buscar dados dos sensores:', error));
     }
@@ -83,6 +82,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if(currentMode == 1) {
             updateManualButton('manual-fan-btn', state.actuators.ventilador);
             updateManualButton('manual-screw-btn', state.actuators.motor_rosca);
+            updateManualButton('manual-cooling-btn', state.actuators.ventilacao_resfriador);
             // Lógica para tambor é mais complexa, pode ser ajustada
             updateManualButton('manual-drum-fwd-btn', state.actuators.tambor_pul && state.actuators.tambor_dir);
             updateManualButton('manual-drum-rev-btn', state.actuators.tambor_pul && !state.actuators.tambor_dir);
@@ -139,6 +139,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'status_ventilador': actuators.ventilador,
             'status_resistencia': actuators.resistencia,
             'status_motor_rosca': actuators.motor_rosca,
+            'status_ventilacao_resfriador': actuators.ventilacao_resfriador,
             'status_tambor': actuators.tambor_pul // Considera ligado se pulso ativo
         };
         
@@ -189,10 +190,10 @@ document.addEventListener('DOMContentLoaded', function() {
         
         updateBadge('manual-fan-btn', 'ventilador');
         updateBadge('manual-screw-btn', 'motor_rosca');
+        updateBadge('manual-cooling-btn', 'ventilacao_resfriador');
     }
 
     function emitControlEvent(command, payload) {
-        console.log(`📤 Enviando comando: ${command}`, payload);
         socket.emit('control_event', { command, payload });
     }
 
@@ -249,7 +250,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Toggle ventilador ou rosca (comportamento normal)
                 const targetMap = {
                     'manual-fan-btn': 'ventilador',
-                    'manual-screw-btn': 'motor_rosca'
+                    'manual-screw-btn': 'motor_rosca',
+                    'manual-cooling-btn': 'ventilacao_resfriador'
                 };
                 const target = targetMap[id];
                 if (target && state.actuators) {

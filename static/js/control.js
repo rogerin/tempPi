@@ -124,6 +124,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
+
+        // Calcular e exibir pressão em BAR
+        const barElement = document.getElementById('display_pressao_gases_bar');
+        if (barElement && values['Pressão Gases'] !== undefined) {
+            const psi = values['Pressão Gases'];
+            const bar = psi / 14.504;
+            barElement.textContent = `${bar.toFixed(3)} BAR`;
+        }
     }
 
     function updateActuatorStatus(actuators) {

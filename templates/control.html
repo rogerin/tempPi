@@ -169,6 +169,18 @@
 
     <!-- Coluna de Status e Ajustes -->
     <div class="col-lg-4 mb-4">
+        <!-- Status dos Sensores -->
+        <div class="card mb-3">
+            <div class="card-header d-flex align-items-center">
+                <h6 class="mb-0"><i class="fas fa-microchip me-2"></i> Status dos Sensores</h6>
+                <span class="ms-auto small text-muted" id="sensor_status_updated">--</span>
+            </div>
+            <div class="card-body">
+                <div id="sensor_status_list" class="list-group list-group-flush">
+                    <!-- Itens renderizados via JS -->
+                </div>
+            </div>
+        </div>
         <!-- Status dos Atuadores -->
         <div class="card mb-3">
             <div class="card-header">
@@ -352,6 +364,11 @@
     /* Aumentar tamanho dos ícones */
     .fas, .far {
         font-size: 1.2em !important;
+    }
+    .list-group-item {
+        padding-left: 0;
+        padding-right: 0;
+        border: 0;
     }
 </style>
 

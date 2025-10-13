@@ -181,6 +181,15 @@ def init_database():
             sensor_type TEXT NOT NULL, pins TEXT, mode TEXT DEFAULT 'simulation'
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sensor_status (
+            name TEXT PRIMARY KEY,
+            ok INTEGER NOT NULL,
+            last_error TEXT,
+            pins TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     conn.commit()
     conn.close()
     print(f"📊 Banco de dados inicializado: {DATABASE_PATH}")
@@ -535,13 +544,26 @@ if USE_RPI:
             return None, None
 
         working_sensors = 0
+        # Estrutura para status de sensores
+        global_sensor_status = {}
+
         for name, pins in thermo_configs.items():
             sensor, temp = test_sensor_with_retries(name, pins)
             if sensor:
                 thermo_sensors[name] = sensor
                 working_sensors += 1
+                global_sensor_status[name] = {
+                    'ok': 1,
+                    'last_error': None,
+                    'pins': str(tuple(pins))
+                }
             else:
                 failed_sensors.append(f"{name} (Pinos: {pins})")
+                global_sensor_status[name] = {
+                    'ok': 0,
+                    'last_error': 'Sem resposta nas tentativas iniciais',
+                    'pins': str(tuple(pins))
+                }
         
         if failed_sensors:
             print("\n" + "="*70)
@@ -549,10 +571,32 @@ if USE_RPI:
             print("="*70)
             for sensor_name in failed_sensors:
                 print(f"  ❌ {sensor_name}: Sem resposta")
-            print("\n⚠️  ATENÇÃO: O sistema não pode iniciar com sensores falhando!")
-            _hardware_init_success = False
+            print("\n⚠️  ATENÇÃO: Inicializando em modo degradado (sensores com falha)")
+            _hardware_init_success = True
         else:
             print("\n🚀 TODOS OS SENSORES ESTÃO FUNCIONANDO PERFEITAMENTE!")
+
+        # Persistir status no banco
+        try:
+            conn = sqlite3.connect(DATABASE_PATH)
+            cursor = conn.cursor()
+            for s_name, s in global_sensor_status.items():
+                cursor.execute(
+                    '''
+                    INSERT INTO sensor_status (name, ok, last_error, pins, updated_at)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(name) DO UPDATE SET
+                        ok=excluded.ok,
+                        last_error=excluded.last_error,
+                        pins=excluded.pins,
+                        updated_at=CURRENT_TIMESTAMP
+                    ''',
+                    (s_name, int(s['ok']), s['last_error'], s['pins'])
+                )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"❌ Erro ao persistir sensor_status: {e}")
 
         # ============= INICIALIZAR SENSORES DE PRESSÃO (ADS1115) =============
         print("\n🔍 Detectando dispositivos I2C...")
@@ -1021,13 +1065,11 @@ def main():
         print("="*70)
         
         if not _hardware_init_success:
-            print("❌ Hardware não inicializado corretamente!")
-            raise SystemExit()
+            print("❌ Hardware não inicializado corretamente! Iniciando em modo degradado.")
         
         # Validar sensores
         if not validate_sensors():
-            print("❌ Sensores não validados - impossível continuar!")
-            raise SystemExit()
+            print("⚠️  Sensores não validados - prosseguindo em modo degradado sem leituras reais.")
     else:
         print("\n" + "="*70)
         print("🎮 MODO SIMULAÇÃO - DADOS ALEATÓRIOS")

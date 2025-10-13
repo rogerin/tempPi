@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Solicita os dados mais recentes ao se conectar
         socket.emit('request_initial_data');
         fetchSensorData();
+        fetchSensorHealth();
     });
 
     // Listener para atualizações do backend
@@ -43,6 +44,59 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => console.error('Erro ao buscar dados dos sensores:', error));
     }
+
+    function fetchSensorHealth() {
+        fetch('/api/health/sensors')
+            .then(response => response.json())
+            .then(items => {
+                renderSensorHealth(items);
+            })
+            .catch(error => console.error('Erro ao buscar status dos sensores:', error));
+    }
+
+    function renderSensorHealth(items) {
+        const list = document.getElementById('sensor_status_list');
+        const updated = document.getElementById('sensor_status_updated');
+        if (!list) return;
+        list.innerHTML = '';
+
+        if (Array.isArray(items) && items.length > 0) {
+            items.forEach(it => {
+                const row = document.createElement('div');
+                row.className = 'list-group-item d-flex align-items-center py-2';
+
+                const name = document.createElement('div');
+                name.className = 'me-2';
+                name.innerHTML = `<i class="fas fa-thermometer-half me-1"></i> ${it.name}`;
+
+                const pins = document.createElement('small');
+                pins.className = 'text-muted ms-2';
+                pins.textContent = it.pins ? `${it.pins}` : '';
+
+                const badge = document.createElement('span');
+                badge.className = `badge ms-auto ${it.ok ? 'bg-success' : 'bg-danger'}`;
+                badge.textContent = it.ok ? 'OK' : 'Falha';
+                if (it.last_error && !it.ok) {
+                    badge.title = it.last_error;
+                }
+
+                row.appendChild(name);
+                row.appendChild(pins);
+                row.appendChild(badge);
+                list.appendChild(row);
+            });
+            if (updated) updated.textContent = new Date().toLocaleTimeString();
+        } else {
+            const empty = document.createElement('div');
+            empty.className = 'list-group-item py-2 text-muted';
+            empty.textContent = 'Sem dados de status disponíveis';
+            list.appendChild(empty);
+            if (updated) updated.textContent = '--';
+        }
+    }
+
+    // Atualização periódica do card de status dos sensores
+    setInterval(fetchSensorHealth, 4000);
 
     function updateUI(data) {
         // Atualizar state local

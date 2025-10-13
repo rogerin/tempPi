@@ -271,6 +271,40 @@ def api_stats():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/health/sensors')
+def api_health_sensors():
+    """Retorna status atual dos sensores (modo degradado incluído)."""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS sensor_status (
+                name TEXT PRIMARY KEY,
+                ok INTEGER NOT NULL,
+                last_error TEXT,
+                pins TEXT,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            '''
+        )
+        cursor.execute("SELECT name, ok, last_error, pins, updated_at FROM sensor_status ORDER BY name ASC")
+        rows = cursor.fetchall()
+        conn.close()
+
+        items = []
+        for r in rows:
+            items.append({
+                'name': r[0],
+                'ok': bool(r[1]),
+                'last_error': r[2],
+                'pins': r[3],
+                'updated_at': r[4],
+            })
+        return jsonify(items)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/sensor/<sensor_name>/data')
 def api_sensor_data(sensor_name):
     """Retorna dados históricos de um sensor específico."""

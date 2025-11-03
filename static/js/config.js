@@ -227,7 +227,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (toast.parentNode) toast.remove();
         }, 5000);
     }
-}
+});
 
 async function loadNetworkInfo() {
     try {

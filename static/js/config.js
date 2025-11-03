@@ -4,10 +4,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('smtp-config-form');
     const testBtn = document.getElementById('test-smtp');
     const loadBtn = document.getElementById('load-config');
-    const testModal = new bootstrap.Modal(document.getElementById('testModal'));
+    const testModalEl = document.getElementById('testModal');
+    const testModal = testModalEl ? new bootstrap.Modal(testModalEl) : null;
     const resetBtn = document.getElementById('btn-reset-sensor-data');
-    const confirm1 = new bootstrap.Modal(document.getElementById('confirmReset1'));
-    const confirm2 = new bootstrap.Modal(document.getElementById('confirmReset2'));
+    const confirm1El = document.getElementById('confirmReset1');
+    const confirm2El = document.getElementById('confirmReset2');
+    const confirm1 = confirm1El ? new bootstrap.Modal(confirm1El) : null;
+    const confirm2 = confirm2El ? new bootstrap.Modal(confirm2El) : null;
 
     // Carregar configurações existentes
     loadConfig();
@@ -16,14 +19,14 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', saveConfig);
     testBtn.addEventListener('click', testSMTP);
     loadBtn.addEventListener('click', loadConfig);
-    if (resetBtn) {
+    if (resetBtn && confirm1) {
         resetBtn.addEventListener('click', () => {
             confirm1.show();
         });
     }
 
     const goConfirm2Btn = document.getElementById('go-confirm-2');
-    if (goConfirm2Btn) {
+    if (goConfirm2Btn && confirm1 && confirm2) {
         goConfirm2Btn.addEventListener('click', () => {
             confirm1.hide();
             setTimeout(() => confirm2.show(), 200);
@@ -31,7 +34,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const confirmFinalBtn = document.getElementById('confirm-reset-final');
-    if (confirmFinalBtn) {
+    if (confirmFinalBtn && confirm2) {
         confirmFinalBtn.addEventListener('click', async () => {
             try {
                 const resp = await fetch('/api/admin/reset-sensor-data', { method: 'POST' });
@@ -135,7 +138,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Mostrar modal de teste
-        testModal.show();
+        if (testModal) testModal.show();
         
         // Limpar resultado anterior
         document.getElementById('test-result').innerHTML = `

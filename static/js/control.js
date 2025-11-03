@@ -1,4 +1,48 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Utilitários de máscara e normalização decimal (pt-BR)
+    function normalizeDecimalString(value) {
+        if (typeof value !== 'string') return '';
+        return value.replace(/\s+/g, '').replace(',', '.');
+    }
+
+    function parseDecimalBR(value) {
+        if (value === null || value === undefined) return NaN;
+        const normalized = normalizeDecimalString(String(value));
+        const n = parseFloat(normalized);
+        return isNaN(n) ? NaN : n;
+    }
+
+    function formatDecimalBR(number, decimals) {
+        if (typeof number !== 'number' || !isFinite(number)) return '';
+        const fixed = number.toFixed(decimals);
+        return fixed.replace('.', ',');
+    }
+
+    function sanitizeDecimalInputElement(inputEl) {
+        if (!inputEl) return;
+        let v = inputEl.value || '';
+        // manter apenas dígitos, vírgula e ponto
+        v = v.replace(/[^0-9.,]/g, '');
+        // se tiver vírgula e ponto, prioriza vírgula removendo pontos
+        if (v.includes(',') && v.includes('.')) {
+            v = v.replace(/\./g, '');
+        }
+        // colapsar separadores repetidos
+        v = v.replace(/([.,]){2,}/g, '$1');
+        inputEl.value = v;
+    }
+
+    function attachDecimalGuards(inputEl) {
+        if (!inputEl) return;
+        inputEl.addEventListener('keydown', (e) => {
+            const invalidKeys = ['e', 'E', '+', '-'];
+            if (invalidKeys.includes(e.key)) {
+                e.preventDefault();
+            }
+        });
+        inputEl.addEventListener('input', () => sanitizeDecimalInputElement(inputEl));
+        inputEl.addEventListener('paste', () => setTimeout(() => sanitizeDecimalInputElement(inputEl), 0));
+    }
     // Calibração de pressão - UI
     const pressureCalibModalEl = document.getElementById('pressureCalibModal');
     const pressureCalibModal = pressureCalibModalEl ? new bootstrap.Modal(pressureCalibModalEl) : null;
@@ -10,8 +54,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const resp = await fetch('/api/config/pressure-calibration');
                 if (resp.ok) {
                     const cfg = await resp.json();
-                    document.getElementById('calib_gain').value = cfg.gain ?? 1.0;
-                    document.getElementById('calib_offset').value = cfg.offset ?? 0.0;
+                    const gainEl = document.getElementById('calib_gain');
+                    const offsetEl = document.getElementById('calib_offset');
+                    if (gainEl) gainEl.value = formatDecimalBR(Number(cfg.gain ?? 1.0), 5);
+                    if (offsetEl) offsetEl.value = formatDecimalBR(Number(cfg.offset ?? 0.0), 2);
                 }
             } catch (_) {}
             pressureCalibModal.show();
@@ -21,13 +67,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnSuggest = document.getElementById('btn-calib-suggest');
     if (btnSuggest) {
         btnSuggest.addEventListener('click', () => {
-            const sys = parseFloat(document.getElementById('calib_system_reading').value || '0');
-            const off = parseFloat(document.getElementById('calib_official_reading').value || '0');
+            const sys = parseDecimalBR(document.getElementById('calib_system_reading').value || '');
+            const off = parseDecimalBR(document.getElementById('calib_official_reading').value || '');
             if (sys > 0 && off > 0) {
                 const gain = off / sys;
-                document.getElementById('calib_gain').value = gain.toFixed(5);
+                document.getElementById('calib_gain').value = formatDecimalBR(gain, 5);
                 if (document.getElementById('calib_offset').value === '') {
-                    document.getElementById('calib_offset').value = '0.00';
+                    document.getElementById('calib_offset').value = formatDecimalBR(0, 2);
                 }
             } else {
                 showToast('Preencha Sistema e Oficial (>0) para sugerir.', 'warning');
@@ -38,8 +84,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnSave = document.getElementById('btn-calib-save');
     if (btnSave) {
         btnSave.addEventListener('click', async () => {
-            const gain = parseFloat(document.getElementById('calib_gain').value || '1');
-            const offset = parseFloat(document.getElementById('calib_offset').value || '0');
+            const gain = parseDecimalBR(document.getElementById('calib_gain').value || '');
+            const offset = parseDecimalBR(document.getElementById('calib_offset').value || '');
             try {
                 const resp = await fetch('/api/config/pressure-calibration', {
                     method: 'POST',
@@ -58,6 +104,81 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Calculadora de calibração (2 pontos)
+    const btnTwoPoint = document.getElementById('btn-calib-two-point');
+    if (btnTwoPoint) {
+        btnTwoPoint.addEventListener('click', () => {
+            const sysA = parseDecimalBR(document.getElementById('calib_sys_a').value || '');
+            const offA = parseDecimalBR(document.getElementById('calib_off_a').value || '');
+            const sysB = parseDecimalBR(document.getElementById('calib_sys_b').value || '');
+            const offB = parseDecimalBR(document.getElementById('calib_off_b').value || '');
+
+            // Se B não for informado, cai no caso 1 ponto (offset=0, gain=offA/sysA)
+            if (!isNaN(sysA) && !isNaN(offA) && (isNaN(sysB) || isNaN(offB))) {
+                if (sysA === 0) {
+                    showToast('Sistema (A) não pode ser zero.', 'warning');
+                    return;
+                }
+                const gain = offA / sysA;
+                const offset = 0;
+                document.getElementById('calib_gain').value = formatDecimalBR(gain, 5);
+                document.getElementById('calib_offset').value = formatDecimalBR(offset, 2);
+                showToast('Ganho/offset calculados pelo ponto A (offset=0).', 'info');
+                return;
+            }
+
+            // Dois pontos: gain = (offB - offA) / (sysB - sysA) ; offset = offA - gain*sysA
+            if (!isNaN(sysA) && !isNaN(offA) && !isNaN(sysB) && !isNaN(offB)) {
+                if (sysB === sysA) {
+                    showToast('Sistema A e B não podem ser iguais.', 'warning');
+                    return;
+                }
+                const gain = (offB - offA) / (sysB - sysA);
+                const offset = offA - (gain * sysA);
+                if (!isFinite(gain) || !isFinite(offset)) {
+                    showToast('Valores inválidos para cálculo.', 'danger');
+                    return;
+                }
+                document.getElementById('calib_gain').value = formatDecimalBR(gain, 5);
+                document.getElementById('calib_offset').value = formatDecimalBR(offset, 2);
+                showToast('Ganho/offset calculados por 2 pontos.', 'success');
+                return;
+            }
+
+            showToast('Preencha ao menos o ponto A, ou A e B para 2 pontos.', 'warning');
+        });
+    }
+
+    // Pré-visualização da correção
+    const btnPreview = document.getElementById('btn-calib-preview');
+    if (btnPreview) {
+        const doPreview = () => {
+            const raw = parseDecimalBR(document.getElementById('calib_preview_input').value || '');
+            const gain = parseDecimalBR(document.getElementById('calib_gain').value || '');
+            const offset = parseDecimalBR(document.getElementById('calib_offset').value || '');
+            if (isNaN(raw) || isNaN(gain) || isNaN(offset)) {
+                document.getElementById('calib_preview_output').value = '-';
+                return;
+            }
+            const corrected = (raw * gain) + offset;
+            document.getElementById('calib_preview_output').value = formatDecimalBR(corrected, 2);
+        };
+        btnPreview.addEventListener('click', doPreview);
+        const previewInput = document.getElementById('calib_preview_input');
+        if (previewInput) previewInput.addEventListener('input', doPreview);
+        const gainInput = document.getElementById('calib_gain');
+        const offsetInput = document.getElementById('calib_offset');
+        if (gainInput) gainInput.addEventListener('input', doPreview);
+        if (offsetInput) offsetInput.addEventListener('input', doPreview);
+    }
+
+    // Conectar máscaras aos campos
+    const decimalInputIds = [
+        'calib_system_reading', 'calib_official_reading', 'calib_gain', 'calib_offset',
+        'calib_sys_a', 'calib_off_a', 'calib_sys_b', 'calib_off_b', 'calib_preview_input'
+    ];
+    decimalInputIds.forEach(id => attachDecimalGuards(document.getElementById(id)));
     const socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port + '/web');
 
     // Estado local do frontend

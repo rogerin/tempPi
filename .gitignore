@@ -37,3 +37,9 @@ __pycache__/
 # Logs
 logs/
 *.log
+
+# Local runtime artifacts
+log.txt
+
+# Local settings (keep an example under version control if needed)
+settings.json

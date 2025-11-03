@@ -104,15 +104,28 @@ state = {
 }
 
 # ============= 3) CLIENTE WEBSOCKET =============
-sio = socketio.Client()
+SIO_CONNECTED = False
+sio = socketio.Client(
+    reconnection=True,
+    reconnection_attempts=0,  # infinito
+    reconnection_delay=1,
+    reconnection_delay_max=10
+)
 
 @sio.event(namespace='/dashboard')
 def connect():
+    global SIO_CONNECTED
+    SIO_CONNECTED = True
     print("Conectado ao servidor WebSocket.")
-    sio.emit('request_full_update', namespace='/dashboard')
+    try:
+        sio.emit('request_full_update', namespace='/dashboard')
+    except Exception as e:
+        print(f"Falha ao emitir request_full_update: {e}")
 
 @sio.event(namespace='/dashboard')
 def disconnect():
+    global SIO_CONNECTED
+    SIO_CONNECTED = False
     print("Desconectado do servidor WebSocket.")
 
 @sio.on('command_from_server', namespace='/dashboard')
@@ -164,7 +177,11 @@ def handle_command(data):
 
 @sio.on('request_full_update', namespace='/dashboard')
 def send_full_update():
-    sio.emit('dashboard_update', state, namespace='/dashboard')
+    if SIO_CONNECTED:
+        try:
+            sio.emit('dashboard_update', state, namespace='/dashboard')
+        except Exception as e:
+            print(f"Falha ao emitir dashboard_update: {e}")
 
 # ============= 4) BANCO DE DADOS e CONFIGURAÇÕES =============
 DATABASE_PATH = "sensor_data.db"
@@ -1032,12 +1049,20 @@ def run_startup_test():
         print(f"\n🔧 Testando {name}...")
         state['actuators'][actuator] = True
         apply_actuator_state()
-        sio.emit('dashboard_update', state, namespace='/dashboard')
+        if SIO_CONNECTED:
+            try:
+                sio.emit('dashboard_update', state, namespace='/dashboard')
+            except Exception as e:
+                print(f"Falha ao emitir dashboard_update: {e}")
         time.sleep(duration)
         
         state['actuators'][actuator] = False
         apply_actuator_state()
-        sio.emit('dashboard_update', state, namespace='/dashboard')
+        if SIO_CONNECTED:
+            try:
+                sio.emit('dashboard_update', state, namespace='/dashboard')
+            except Exception as e:
+                print(f"Falha ao emitir dashboard_update: {e}")
         time.sleep(0.5)
     
     # Testar Tambor Avanço
@@ -1045,12 +1070,20 @@ def run_startup_test():
     state['actuators']['tambor_dir'] = True
     state['actuators']['tambor_pul'] = True
     apply_actuator_state()
-    sio.emit('dashboard_update', state, namespace='/dashboard')
+    if SIO_CONNECTED:
+        try:
+            sio.emit('dashboard_update', state, namespace='/dashboard')
+        except Exception as e:
+            print(f"Falha ao emitir dashboard_update: {e}")
     time.sleep(2.0)
     
     state['actuators']['tambor_pul'] = False
     apply_actuator_state()
-    sio.emit('dashboard_update', state, namespace='/dashboard')
+    if SIO_CONNECTED:
+        try:
+            sio.emit('dashboard_update', state, namespace='/dashboard')
+        except Exception as e:
+            print(f"Falha ao emitir dashboard_update: {e}")
     time.sleep(0.5)
     
     # Testar Tambor Retorno
@@ -1058,13 +1091,21 @@ def run_startup_test():
     state['actuators']['tambor_dir'] = False
     state['actuators']['tambor_pul'] = True
     apply_actuator_state()
-    sio.emit('dashboard_update', state, namespace='/dashboard')
+    if SIO_CONNECTED:
+        try:
+            sio.emit('dashboard_update', state, namespace='/dashboard')
+        except Exception as e:
+            print(f"Falha ao emitir dashboard_update: {e}")
     time.sleep(2.0)
     
     # Desligar tudo
     state['actuators']['tambor_pul'] = False
-    apply_actuator_state()
-    sio.emit('dashboard_update', state, namespace='/dashboard')
+        apply_actuator_state()
+        if SIO_CONNECTED:
+            try:
+                sio.emit('dashboard_update', state, namespace='/dashboard')
+            except Exception as e:
+                print(f"Falha ao emitir dashboard_update: {e}")
     
     # Restaurar modo original
     state['settings']['system_mode'] = original_mode
@@ -1136,7 +1177,11 @@ def main():
             handle_automatic_mode()
         
         apply_actuator_state()
-        sio.emit('dashboard_update', state, namespace='/dashboard')
+        if SIO_CONNECTED:
+            try:
+                sio.emit('dashboard_update', state, namespace='/dashboard')
+            except Exception as e:
+                print(f"Falha ao emitir dashboard_update: {e}")
 
         frame = bg.copy()
         ts = datetime.now().strftime("%d/%m/%Y %H:%M:%S")

@@ -157,6 +157,9 @@ function renderAllSensorsChart(data) {
         velocity: d.velocity
     }));
 
+    // Limitar aos últimos 100 registros para reduzir carga no navegador
+    const limitedData = chartData.slice(-100);
+
     if (allSensorsChart) allSensorsChart.destroy();
 
     // Configurar datasets baseado nos sensores selecionados
@@ -168,7 +171,7 @@ function renderAllSensorsChart(data) {
         if (currentFilters.selectedSensors.includes(sensor)) {
             datasets.push({
                 label: sensorNames[sensor],
-                data: chartData.map(d => ({ x: d.x, y: d[sensor] })).filter(d => d.y !== null),
+                data: limitedData.map(d => ({ x: d.x, y: d[sensor] })).filter(d => d.y !== null),
                 borderColor: sensorColors[sensor],
                 backgroundColor: sensorColors[sensor] + '20',
                 fill: false,
@@ -182,7 +185,7 @@ function renderAllSensorsChart(data) {
     if (currentFilters.selectedSensors.includes('pressao_gases')) {
         datasets.push({
             label: 'Pressão Gases',
-            data: chartData.map(d => ({ 
+            data: limitedData.map(d => ({ 
                 x: d.x, 
                 y: currentPressureUnit === 'bar' ? (d.pressao_gases * 0.0689476) : d.pressao_gases 
             })).filter(d => d.y !== null),
@@ -198,7 +201,7 @@ function renderAllSensorsChart(data) {
     if (currentFilters.selectedSensors.includes('velocity')) {
         datasets.push({
             label: 'Velocidade',
-            data: chartData.map(d => ({ x: d.x, y: d.velocity })).filter(d => d.y !== null),
+            data: limitedData.map(d => ({ x: d.x, y: d.velocity })).filter(d => d.y !== null),
             borderColor: sensorColors.velocity,
             backgroundColor: sensorColors.velocity + '20',
             fill: false,
@@ -386,13 +389,12 @@ function updateLastUpdateTime() {
 }
 
 // Função de toast (se não existir)
+// Evita recursão quando existir showToast global
 function showToast(message, type = 'info') {
-    // Usar toast do Bootstrap se disponível
-    if (typeof window.showToast === 'function') {
+    if (typeof window.showToast === 'function' && window.showToast !== showToast) {
         window.showToast(message, type);
         return;
     }
-    
     // Fallback simples
     const toast = document.createElement('div');
     toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
@@ -401,12 +403,8 @@ function showToast(message, type = 'info') {
         ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
-    
     document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        if (toast.parentNode) toast.remove();
-    }, 5000);
+    setTimeout(() => { if (toast.parentNode) toast.remove(); }, 5000);
 }
 
 } // fim do guard __ALL_SENSORS_INIT__

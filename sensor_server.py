@@ -678,10 +678,19 @@ def api_generate_pdf():
         
         data = request.get_json()
         
+        # Normalizar timestamps vindos de inputs datetime-local (YYYY-MM-DDTHH:MM)
+        def _normalize_ts(ts):
+            if not ts:
+                return None
+            ts = ts.replace('T', ' ')
+            if len(ts) == 16:  # YYYY-MM-DD HH:MM
+                ts = ts + ':00'
+            return ts
+        
         # Parâmetros do filtro
         time_range = data.get('timeRange', '24')
-        start_time = data.get('startTime')
-        end_time = data.get('endTime')
+        start_time = _normalize_ts(data.get('startTime'))
+        end_time = _normalize_ts(data.get('endTime'))
         group_by = data.get('groupBy', 'none')
         selected_sensors = data.get('selectedSensors', [])
         pressure_unit = data.get('pressureUnit', 'psi')

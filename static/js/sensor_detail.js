@@ -323,6 +323,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Auto-refresh
     document.getElementById('auto-refresh').addEventListener('click', toggleAutoRefresh);
+    
+    // Email functionality
+    document.getElementById('send-email').addEventListener('click', function() {
+        const modal = new bootstrap.Modal(document.getElementById('emailModal'));
+        modal.show();
+    });
+    
+    document.getElementById('send-email-btn').addEventListener('click', sendEmail);
 });
 
 // Função para mostrar toast (reutilizar do main.js se disponível)
@@ -346,4 +354,65 @@ function showToast(message, type = 'info') {
     setTimeout(() => {
         if (toast.parentNode) toast.remove();
     }, 5000);
+}
+
+// Enviar email com relatório
+async function sendEmail() {
+    try {
+        const button = document.getElementById('send-email-btn');
+        const originalText = button.innerHTML;
+        
+        // Mostrar loading
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+        
+        // Coletar dados do formulário
+        const emailData = {
+            recipient_email: document.getElementById('recipient-email').value,
+            recipient_name: document.getElementById('recipient-name').value,
+            subject: document.getElementById('email-subject').value,
+            period: document.getElementById('email-period').value,
+            include_chart: document.getElementById('include-chart').checked,
+            include_stats: document.getElementById('include-stats').checked,
+            include_raw_data: document.getElementById('include-raw-data').checked,
+            message: document.getElementById('email-message').value,
+            sensor_name: sensorName
+        };
+        
+        // Validação
+        if (!emailData.recipient_email) {
+            throw new Error('Email destinatário é obrigatório');
+        }
+        
+        // Enviar requisição
+        const response = await fetch('/api/reports/send-email', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(emailData)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            showToast('Email enviado com sucesso!', 'success');
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('emailModal'));
+            modal.hide();
+            // Limpar formulário
+            document.getElementById('email-form').reset();
+        } else {
+            throw new Error(result.error || 'Erro ao enviar email');
+        }
+        
+    } catch (error) {
+        console.error('Erro ao enviar email:', error);
+        showToast(`Erro ao enviar email: ${error.message}`, 'danger');
+    } finally {
+        // Restaurar botão
+        const button = document.getElementById('send-email-btn');
+        button.disabled = false;
+        button.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar Email';
+    }
 }

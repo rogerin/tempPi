@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações - TempPi{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-cog"></i> Configurações do Sistema
+            <a href="/" class="btn btn-outline-secondary btn-sm float-end">
+                <i class="fas fa-arrow-left"></i> Voltar
+            </a>
+        </h1>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Configurações SMTP -->
+    <div class="col-lg-8 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-envelope"></i> Configurações de Email (SMTP)</h5>
+            </div>
+            <div class="card-body">
+                <form id="smtp-config-form">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="smtp_host" class="form-label">Servidor SMTP</label>
+                            <input type="text" class="form-control" id="smtp_host" placeholder="smtp.gmail.com">
+                            <div class="form-text">Ex: smtp.gmail.com, smtp.outlook.com</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="smtp_port" class="form-label">Porta</label>
+                            <input type="number" class="form-control" id="smtp_port" placeholder="587">
+                            <div class="form-text">587 (TLS) ou 465 (SSL)</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="smtp_user" class="form-label">Usuário</label>
+                            <input type="email" class="form-control" id="smtp_user" placeholder="seu@email.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="smtp_password" class="form-label">Senha</label>
+                            <input type="password" class="form-control" id="smtp_password" placeholder="Sua senha">
+                            <div class="form-text">Use senha de app para Gmail</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="sender_email" class="form-label">Email Remetente</label>
+                            <input type="email" class="form-control" id="sender_email" placeholder="sistema@tempPi.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="sender_name" class="form-label">Nome Remetente</label>
+                            <input type="text" class="form-control" id="sender_name" placeholder="Sistema TempPi">
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Salvar Configurações
+                        </button>
+                        <button type="button" class="btn btn-outline-info" id="test-smtp">
+                            <i class="fas fa-paper-plane"></i> Testar Conexão
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="load-config">
+                            <i class="fas fa-download"></i> Carregar Configurações
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Status e Informações -->
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="fas fa-info-circle"></i> Status do Sistema</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Configuração SMTP:</strong>
+                    <span class="badge bg-secondary ms-2" id="smtp-status">Não configurado</span>
+                </div>
+                <div class="mb-3">
+                    <strong>Último teste:</strong>
+                    <span class="text-muted" id="last-test">-</span>
+                </div>
+                <div class="mb-3">
+                    <strong>Relatórios por email:</strong>
+                    <span class="badge bg-success ms-2" id="email-reports-status">Disponível</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="fas fa-question-circle"></i> Ajuda</h6>
+            </div>
+            <div class="card-body">
+                <h6>Gmail:</h6>
+                <ul class="small">
+                    <li>Servidor: smtp.gmail.com</li>
+                    <li>Porta: 587</li>
+                    <li>Use senha de app (não a senha normal)</li>
+                </ul>
+                
+                <h6>Outlook:</h6>
+                <ul class="small">
+                    <li>Servidor: smtp-mail.outlook.com</li>
+                    <li>Porta: 587</li>
+                </ul>
+                
+                <div class="alert alert-info small">
+                    <i class="fas fa-lightbulb"></i>
+                    <strong>Dica:</strong> Para Gmail, ative a autenticação de 2 fatores e gere uma senha de app.
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mt-3">
+        <div class="card-header">
+            <h6><i class="fas fa-network-wired"></i> Acesso Remoto</h6>
+        </div>
+        <div class="card-body">
+            <h6>Como acessar de outros dispositivos:</h6>
+            <div class="mb-3">
+                <strong>IP do Servidor:</strong>
+                <code id="server-ip" class="ms-2">Carregando...</code>
+            </div>
+            <div class="mb-3">
+                <strong>URL de Acesso:</strong>
+                <div class="input-group mt-2">
+                    <input type="text" class="form-control" id="server-url" readonly value="Carregando...">
+                    <button class="btn btn-outline-secondary" type="button" id="copy-url">
+                        <i class="fas fa-copy"></i> Copiar
+                    </button>
+                </div>
+            </div>
+            
+            <div class="alert alert-info small mb-0">
+                <i class="fas fa-info-circle"></i>
+                <strong>Instruções:</strong>
+                <ol class="mb-0 mt-2">
+                    <li>Certifique-se de que o dispositivo está na mesma rede Wi-Fi</li>
+                    <li>Abra o navegador (Chrome, Firefox, Safari, etc.)</li>
+                    <li>Digite ou cole a URL de acesso acima</li>
+                    <li>Acesse o painel de controle em <code>/control</code></li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Teste -->
+<div class="modal fade" id="testModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Teste de Conexão SMTP</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="test-result">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Testando...</span>
+                        </div>
+                        <p class="mt-2">Testando conexão SMTP...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .form-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    
+    .card-header h5, .card-header h6 {
+        margin: 0;
+        font-weight: 600;
+    }
+    
+    .badge {
+        font-size: 0.8rem;
+    }
+    
+    .alert {
+        font-size: 0.875rem;
+    }
+    
+    .small ul {
+        margin-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/config.js') }}"></script>
+{% endblock %}

@@ -4,7 +4,7 @@
 # Integrado com servidor WebSocket para controle e visualização remota.
 
 import cv2, numpy as np, random, argparse, time, math, warnings, signal, sqlite3, os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import socketio
 import json
 import threading
@@ -194,6 +194,11 @@ def init_database():
     conn.close()
     print(f"📊 Banco de dados inicializado: {DATABASE_PATH}")
 
+def get_brazil_time():
+    """Retorna timestamp atual em GMT-3 (Brasil)"""
+    brazil_tz = timezone(timedelta(hours=-3))
+    return datetime.now(brazil_tz)
+
 def log_sensor_reading(sensor_name, value, sensor_type, pins=None, mode="simulation"):
     try:
         conn = sqlite3.connect(DATABASE_PATH)
@@ -203,10 +208,13 @@ def log_sensor_reading(sensor_name, value, sensor_type, pins=None, mode="simulat
         elif sensor_type == "pressure": pressure = value
         elif sensor_type == "velocity": velocity = value
         
+        # Usar timestamp do Brasil (GMT-3)
+        brazil_time = get_brazil_time().strftime('%Y-%m-%d %H:%M:%S')
+        
         cursor.execute('''
-            INSERT INTO sensor_readings (sensor_name, temperature, pressure, velocity, sensor_type, pins, mode)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (sensor_name, temperature, pressure, velocity, sensor_type, str(pins) if pins else None, mode))
+            INSERT INTO sensor_readings (sensor_name, temperature, pressure, velocity, sensor_type, pins, mode, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (sensor_name, temperature, pressure, velocity, sensor_type, str(pins) if pins else None, mode, brazil_time))
         conn.commit()
         conn.close()
     except Exception as e:
@@ -804,32 +812,19 @@ def handle_automatic_mode():
     temp_min = settings.get("temp_forno_min", 300)
     temp_max = settings.get("temp_forno_max", 400)
 
-    if temp_forno < temp_min:
-        state['actuators']['ventilador'] = True
-        
-        # Resistência: liga quando temperatura < mínima
-        state['actuators']['resistencia'] = True
-        # Resetar flag quando temperatura cai abaixo da mínima
+    if temp_forno > temp_max:
+        # Temperatura muito alta - desligar tudo
+        state['actuators']['ventilador'] = False
+        state['actuators']['resistencia'] = False
+        state['actuators']['motor_rosca'] = False
+        # Resetar timer da rosca para próximo ciclo
+        state['timers']['rosca_cycle_start'] = None
+        # Resetar estado da resistência quando temperatura muito alta
         state['resistencia_state']['min_temp_reached'] = False
+        print(f"🔥🔥 Temperatura CRÍTICA: {temp_forno}°C > {temp_max}°C → DESLIGANDO TUDO")
         
-        # Ciclo rosca - alterna entre ligado/desligado
-        now = time.time()
-        on_t = max(1, int(settings.get('tempo_acionamento_rosca', 5)))
-        off_t = max(1, int(settings.get('tempo_pausa_rosca', 10)))
-        cycle = on_t + off_t
-        if state['timers']['rosca_cycle_start'] is None:
-            state['timers']['rosca_cycle_start'] = now
-        elapsed_rosca = (now - state['timers']['rosca_cycle_start']) % cycle
-        state['actuators']['motor_rosca'] = (elapsed_rosca < on_t)
-        
-        # ===== CONTROLE AUTOMÁTICO DO TAMBOR =====
-        # Iniciar rotação contínua se ainda não está rodando
-        if not state['actuators'].get('tambor_ena'):
-            start_continuous_drum_rotation(direction=True)  # Forward
-            print("🔥 Aquecimento ON → Tambor iniciado (avanço contínuo)")
-    
     elif temp_forno >= temp_min:
-        # Temperatura atingiu ou superou a mínima
+        # Temperatura atingiu ou superou a mínima - operação normal
         state['actuators']['ventilador'] = True  # Manter ventilador ligado
         
         # Marcar que temperatura mínima foi atingida
@@ -854,15 +849,31 @@ def handle_automatic_mode():
         if not state['actuators'].get('tambor_ena'):
             start_continuous_drum_rotation(direction=True)  # Forward
             print("🔥 Aquecimento ON → Tambor iniciado (avanço contínuo)")
+    
+    elif temp_forno < temp_min:
+        # Temperatura abaixo da mínima - ligar aquecimento
+        state['actuators']['ventilador'] = True
         
-    elif temp_forno > temp_max:
-        state['actuators']['ventilador'] = False
-        state['actuators']['resistencia'] = False
-        state['actuators']['motor_rosca'] = False
-        # Resetar timer da rosca para próximo ciclo
-        state['timers']['rosca_cycle_start'] = None
-        # Resetar estado da resistência quando temperatura muito alta
+        # Resistência: liga quando temperatura < mínima
+        state['actuators']['resistencia'] = True
+        # Resetar flag quando temperatura cai abaixo da mínima
         state['resistencia_state']['min_temp_reached'] = False
+        
+        # Ciclo rosca - alterna entre ligado/desligado
+        now = time.time()
+        on_t = max(1, int(settings.get('tempo_acionamento_rosca', 5)))
+        off_t = max(1, int(settings.get('tempo_pausa_rosca', 10)))
+        cycle = on_t + off_t
+        if state['timers']['rosca_cycle_start'] is None:
+            state['timers']['rosca_cycle_start'] = now
+        elapsed_rosca = (now - state['timers']['rosca_cycle_start']) % cycle
+        state['actuators']['motor_rosca'] = (elapsed_rosca < on_t)
+        
+        # ===== CONTROLE AUTOMÁTICO DO TAMBOR =====
+        # Iniciar rotação contínua se ainda não está rodando
+        if not state['actuators'].get('tambor_ena'):
+            start_continuous_drum_rotation(direction=True)  # Forward
+            print("🔥 Aquecimento ON → Tambor iniciado (avanço contínuo)")
 
 def noise(val, amp): return random.uniform(-amp, amp)
 

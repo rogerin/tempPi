@@ -19,9 +19,13 @@
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
+            <div class="card-header">
+                <h6><i class="fas fa-filter"></i> Filtros Avançados</h6>
+            </div>
             <div class="card-body">
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-3">
+                <!-- Primeira linha: Período e Sensores -->
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
                         <label class="form-label">Período</label>
                         <select class="form-select" id="time-range">
                             <option value="1">Última 1 hora</option>
@@ -29,7 +33,77 @@
                             <option value="24" selected>Últimas 24 horas</option>
                             <option value="72">Últimos 3 dias</option>
                             <option value="168">Última semana</option>
+                            <option value="custom">Período customizado</option>
                         </select>
+                    </div>
+                    
+                    <div class="col-md-4" id="custom-period" style="display: none;">
+                        <label class="form-label">Período Customizado</label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <input type="datetime-local" class="form-control" id="start-datetime" placeholder="Início">
+                            </div>
+                            <div class="col-6">
+                                <input type="datetime-local" class="form-control" id="end-datetime" placeholder="Fim">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label class="form-label">Agrupamento</label>
+                        <select class="form-select" id="group-by">
+                            <option value="none">Sem agrupamento</option>
+                            <option value="1min">1 minuto</option>
+                            <option value="5min">5 minutos</option>
+                            <option value="15min">15 minutos</option>
+                            <option value="1hour">1 hora</option>
+                            <option value="1day">1 dia</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Segunda linha: Sensores e Unidades -->
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Sensores</label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input class="form-check-input sensor-checkbox" type="checkbox" id="sensor-temp-forno" value="temp_forno" checked>
+                                    <label class="form-check-label" for="sensor-temp-forno">Temp Forno</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input sensor-checkbox" type="checkbox" id="sensor-torre-1" value="torre_nivel_1" checked>
+                                    <label class="form-check-label" for="sensor-torre-1">Torre Nível 1</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input sensor-checkbox" type="checkbox" id="sensor-torre-2" value="torre_nivel_2" checked>
+                                    <label class="form-check-label" for="sensor-torre-2">Torre Nível 2</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input sensor-checkbox" type="checkbox" id="sensor-torre-3" value="torre_nivel_3" checked>
+                                    <label class="form-check-label" for="sensor-torre-3">Torre Nível 3</label>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input class="form-check-input sensor-checkbox" type="checkbox" id="sensor-temp-tanque" value="temp_tanque" checked>
+                                    <label class="form-check-label" for="sensor-temp-tanque">Temp Tanque</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input sensor-checkbox" type="checkbox" id="sensor-temp-gases" value="temp_gases" checked>
+                                    <label class="form-check-label" for="sensor-temp-gases">Temp Gases</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input sensor-checkbox" type="checkbox" id="sensor-pressao" value="pressao_gases" checked>
+                                    <label class="form-check-label" for="sensor-pressao">Pressão Gases</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input sensor-checkbox" type="checkbox" id="sensor-velocity" value="velocity" checked>
+                                    <label class="form-check-label" for="sensor-velocity">Velocidade</label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="col-md-3">
@@ -44,15 +118,24 @@
                     </div>
                     
                     <div class="col-md-3">
-                        <button class="btn btn-primary" id="update-chart">
-                            <i class="fas fa-sync-alt"></i> Atualizar
-                        </button>
-                        <button class="btn btn-success" id="auto-refresh" data-active="false">
-                            <i class="fas fa-play"></i> Auto-refresh
-                        </button>
+                        <label class="form-label">Ações</label>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary" id="update-chart">
+                                <i class="fas fa-sync-alt"></i> Atualizar
+                            </button>
+                            <button class="btn btn-success" id="auto-refresh" data-active="false">
+                                <i class="fas fa-play"></i> Auto-refresh
+                            </button>
+                            <button class="btn btn-warning" id="export-pdf">
+                                <i class="fas fa-file-pdf"></i> Exportar PDF
+                            </button>
+                        </div>
                     </div>
-                    
-                    <div class="col-md-3">
+                </div>
+                
+                <!-- Terceira linha: Status -->
+                <div class="row">
+                    <div class="col-12">
                         <div class="text-end">
                             <small class="text-muted">
                                 <i class="fas fa-info-circle"></i> 

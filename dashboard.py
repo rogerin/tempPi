@@ -295,9 +295,8 @@ class PressureSensorADS1115:
             psi = (voltage - 0.5) * 7.5  # 30/4.0 = 7.5
             
             # CALIBRAÇÃO: Fator de correção baseado em medição real
-            # Medido: 19.32 PSI quando real era 30.00 PSI
-            # Fator: 30.00 / 19.32 = 1.553
-            CALIBRATION_FACTOR = 1.553
+            # Ex.: Oficial=10.00 PSI, Sistema=2.42 PSI → Fator = 10.00 / 2.42 = 4.13223
+            CALIBRATION_FACTOR = 4.13223
             psi_calibrated = psi * CALIBRATION_FACTOR
             
             return max(0.0, round(psi_calibrated, 2))

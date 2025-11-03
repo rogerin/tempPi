@@ -1,4 +1,8 @@
 // TempPi All Sensors - Visualização Consolidada de Todos os Sensores
+if (window.__ALL_SENSORS_INIT__) {
+  console.warn('AllSensors já inicializado');
+} else {
+  window.__ALL_SENSORS_INIT__ = true;
 
 let allSensorsChart = null;
 let autoRefreshInterval = null;
@@ -404,3 +408,5 @@ function showToast(message, type = 'info') {
         if (toast.parentNode) toast.remove();
     }, 5000);
 }
+
+} // fim do guard __ALL_SENSORS_INIT__

@@ -1120,6 +1120,22 @@ def api_send_email():
             'error': f'Erro ao enviar email: {str(e)}'
         }), 500
 
+# ===== Admin: Reset de dados de sensores =====
+@app.route('/api/admin/reset-sensor-data', methods=['POST'])
+def api_admin_reset_sensor_data():
+    """Apaga todos os registros da tabela sensor_readings. Não altera configurações."""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(1) FROM sensor_readings')
+        count = cursor.fetchone()[0] or 0
+        cursor.execute('DELETE FROM sensor_readings')
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'deleted': count})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/system/network-info')
 def api_network_info():
     """Retorna informações de rede do servidor."""

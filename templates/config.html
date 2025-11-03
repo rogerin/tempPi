@@ -117,6 +117,19 @@
                 </div>
             </div>
         </div>
+
+        <!-- Ações perigosas -->
+        <div class="card mt-3 border-danger">
+            <div class="card-header bg-danger text-white">
+                <h6 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Ações Perigosas</h6>
+            </div>
+            <div class="card-body">
+                <p class="mb-3 small">Use com cautela. Esta ação não pode ser desfeita.</p>
+                <button type="button" id="btn-reset-sensor-data" class="btn btn-danger">
+                    <i class="fas fa-trash-alt"></i> Resetar dados de sensores
+                </button>
+            </div>
+        </div>
     </div>
     
     <div class="card mt-3">
@@ -173,6 +186,48 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Confirmação 1 -->
+<div class="modal fade" id="confirmReset1" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-exclamation-circle text-danger"></i> Confirmar reset</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Você está prestes a apagar <strong>todos os dados de sensores</strong> (tabela <code>sensor_readings</code>). As configurações serão preservadas.</p>
+                <p class="mb-0">Deseja continuar?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="go-confirm-2">Prosseguir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Confirmação 2 -->
+<div class="modal fade" id="confirmReset2" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-skull-crossbones text-danger"></i> Tem certeza mesmo?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Esta é a <strong>última confirmação</strong>. Após confirmar, todos os registros de sensores serão removidos e não poderão ser recuperados.</p>
+                <div class="alert alert-warning small mb-0">
+                    <i class="fas fa-info-circle"></i> As tabelas de configuração e status serão mantidas.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirm-reset-final">Confirmar reset</button>
             </div>
         </div>
     </div>

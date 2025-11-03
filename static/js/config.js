@@ -5,6 +5,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const testBtn = document.getElementById('test-smtp');
     const loadBtn = document.getElementById('load-config');
     const testModal = new bootstrap.Modal(document.getElementById('testModal'));
+    const resetBtn = document.getElementById('btn-reset-sensor-data');
+    const confirm1 = new bootstrap.Modal(document.getElementById('confirmReset1'));
+    const confirm2 = new bootstrap.Modal(document.getElementById('confirmReset2'));
 
     // Carregar configurações existentes
     loadConfig();
@@ -13,6 +16,38 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', saveConfig);
     testBtn.addEventListener('click', testSMTP);
     loadBtn.addEventListener('click', loadConfig);
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            confirm1.show();
+        });
+    }
+
+    const goConfirm2Btn = document.getElementById('go-confirm-2');
+    if (goConfirm2Btn) {
+        goConfirm2Btn.addEventListener('click', () => {
+            confirm1.hide();
+            setTimeout(() => confirm2.show(), 200);
+        });
+    }
+
+    const confirmFinalBtn = document.getElementById('confirm-reset-final');
+    if (confirmFinalBtn) {
+        confirmFinalBtn.addEventListener('click', async () => {
+            try {
+                const resp = await fetch('/api/admin/reset-sensor-data', { method: 'POST' });
+                const result = await resp.json();
+                if (resp.ok && result.success) {
+                    showToast(`Dados de sensores apagados: ${result.deleted} registros.`, 'success');
+                } else {
+                    showToast(result.error || 'Falha ao resetar dados', 'danger');
+                }
+            } catch (e) {
+                showToast('Erro de comunicação ao resetar dados', 'danger');
+            } finally {
+                confirm2.hide();
+            }
+        });
+    }
     
     // Carregar informações de rede
     loadNetworkInfo();

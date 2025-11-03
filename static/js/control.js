@@ -1,4 +1,63 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Calibração de pressão - UI
+    const pressureCalibModalEl = document.getElementById('pressureCalibModal');
+    const pressureCalibModal = pressureCalibModalEl ? new bootstrap.Modal(pressureCalibModalEl) : null;
+    const btnCalibrar = document.getElementById('btn-calibrar-pressao');
+    if (btnCalibrar && pressureCalibModal) {
+        btnCalibrar.addEventListener('click', async () => {
+            // Carregar calibração atual
+            try {
+                const resp = await fetch('/api/config/pressure-calibration');
+                if (resp.ok) {
+                    const cfg = await resp.json();
+                    document.getElementById('calib_gain').value = cfg.gain ?? 1.0;
+                    document.getElementById('calib_offset').value = cfg.offset ?? 0.0;
+                }
+            } catch (_) {}
+            pressureCalibModal.show();
+        });
+    }
+
+    const btnSuggest = document.getElementById('btn-calib-suggest');
+    if (btnSuggest) {
+        btnSuggest.addEventListener('click', () => {
+            const sys = parseFloat(document.getElementById('calib_system_reading').value || '0');
+            const off = parseFloat(document.getElementById('calib_official_reading').value || '0');
+            if (sys > 0 && off > 0) {
+                const gain = off / sys;
+                document.getElementById('calib_gain').value = gain.toFixed(5);
+                if (document.getElementById('calib_offset').value === '') {
+                    document.getElementById('calib_offset').value = '0.00';
+                }
+            } else {
+                showToast('Preencha Sistema e Oficial (>0) para sugerir.', 'warning');
+            }
+        });
+    }
+
+    const btnSave = document.getElementById('btn-calib-save');
+    if (btnSave) {
+        btnSave.addEventListener('click', async () => {
+            const gain = parseFloat(document.getElementById('calib_gain').value || '1');
+            const offset = parseFloat(document.getElementById('calib_offset').value || '0');
+            try {
+                const resp = await fetch('/api/config/pressure-calibration', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gain, offset })
+                });
+                const result = await resp.json();
+                if (resp.ok && result.success) {
+                    showToast('Calibração salva com sucesso!', 'success');
+                    pressureCalibModal.hide();
+                } else {
+                    showToast(result.error || 'Falha ao salvar calibração', 'danger');
+                }
+            } catch (e) {
+                showToast('Erro de comunicação ao salvar calibração', 'danger');
+            }
+        });
+    }
     const socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port + '/web');
 
     // Estado local do frontend

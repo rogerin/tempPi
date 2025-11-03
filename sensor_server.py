@@ -600,6 +600,41 @@ def api_config_smtp():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/config/pressure-calibration', methods=['GET', 'POST'])
+def api_pressure_calibration():
+    """Lê/salva calibração de pressão (gain/offset) no banco."""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS calibration (
+                key TEXT PRIMARY KEY,
+                value REAL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        if request.method == 'GET':
+            cursor.execute("SELECT value FROM calibration WHERE key='pressure_gain'")
+            row_gain = cursor.fetchone()
+            cursor.execute("SELECT value FROM calibration WHERE key='pressure_offset'")
+            row_offset = cursor.fetchone()
+            conn.close()
+            return jsonify({
+                'gain': float(row_gain[0]) if row_gain else 1.0,
+                'offset': float(row_offset[0]) if row_offset else 0.0
+            })
+        else:
+            data = request.get_json()
+            gain = float(data.get('gain', 1.0))
+            offset = float(data.get('offset', 0.0))
+            cursor.execute("INSERT INTO calibration(key, value) VALUES('pressure_gain', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP", (gain,))
+            cursor.execute("INSERT INTO calibration(key, value) VALUES('pressure_offset', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP", (offset,))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/config/test-smtp', methods=['POST'])
 def api_test_smtp():
     """Testa conexão SMTP."""

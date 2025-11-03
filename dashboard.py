@@ -294,10 +294,24 @@ class PressureSensorADS1115:
                 return 0.0
             psi = (voltage - 0.5) * 7.5  # 30/4.0 = 7.5
             
-            # CALIBRAÇÃO: Fator de correção baseado em medição real
-            # Ex.: Oficial=10.00 PSI, Sistema=2.42 PSI → Fator = 10.00 / 2.42 = 4.13223
-            CALIBRATION_FACTOR = 4.13223
-            psi_calibrated = psi * CALIBRATION_FACTOR
+            # Calibração (gain/offset) lida do banco, com fallback
+            gain, offset = 1.0, 0.0
+            try:
+                conn = sqlite3.connect(DATABASE_PATH)
+                cursor = conn.cursor()
+                cursor.execute("CREATE TABLE IF NOT EXISTS calibration (key TEXT PRIMARY KEY, value REAL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
+                cursor.execute("SELECT value FROM calibration WHERE key='pressure_gain'")
+                row_g = cursor.fetchone()
+                cursor.execute("SELECT value FROM calibration WHERE key='pressure_offset'")
+                row_o = cursor.fetchone()
+                conn.close()
+                if row_g and row_g[0] is not None:
+                    gain = float(row_g[0])
+                if row_o and row_o[0] is not None:
+                    offset = float(row_o[0])
+            except Exception as e:
+                print(f"⚠️  Não foi possível ler calibração: {e}")
+            psi_calibrated = psi * gain + offset
             
             return max(0.0, round(psi_calibrated, 2))
         except Exception as e:

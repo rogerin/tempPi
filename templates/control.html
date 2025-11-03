@@ -148,9 +148,14 @@
                     </div>
                     <div class="col-12">
                         <div class="card bg-info bg-opacity-10">
-                            <div class="card-body text-center py-2">
-                                <small class="text-muted">Pressão Gases</small>
-                                <div class="h6 mb-0" id="display_pressao_gases">- PSI</div>
+                            <div class="card-body d-flex align-items-center justify-content-between py-2">
+                                <div class="text-center w-100">
+                                    <small class="text-muted">Pressão Gases</small>
+                                    <div class="h6 mb-0" id="display_pressao_gases">- PSI</div>
+                                </div>
+                                <button class="btn btn-sm btn-outline-primary ms-2" id="btn-calibrar-pressao" title="Calibrar pressão">
+                                    <i class="fas fa-sliders-h"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -372,6 +377,45 @@
     }
 </style>
 
+<!-- Modal Calibração de Pressão -->
+<div class="modal fade" id="pressureCalibModal" tabindex="-1" aria-labelledby="pressureCalibLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pressureCalibLabel"><i class="fas fa-sliders-h"></i> Calibração de Pressão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="pressure-calib-form">
+                    <div class="mb-3">
+                        <label class="form-label">Leitura do Sistema (PSI)</label>
+                        <input type="number" step="0.01" class="form-control" id="calib_system_reading" placeholder="Ex.: 2.42">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Leitura Oficial (PSI)</label>
+                        <input type="number" step="0.01" class="form-control" id="calib_official_reading" placeholder="Ex.: 10.00">
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">Ganho</label>
+                            <input type="number" step="0.00001" class="form-control" id="calib_gain" placeholder="Ex.: 4.13223">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Offset</label>
+                            <input type="number" step="0.01" class="form-control" id="calib_offset" placeholder="Ex.: 0.00">
+                        </div>
+                    </div>
+                    <small class="text-muted">Dica: Para ajuste simples, preencha "Sistema" e "Oficial" e clique em "Sugerir".</small>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" id="btn-calib-suggest">Sugerir</button>
+                <button type="button" class="btn btn-primary" id="btn-calib-save">Salvar</button>
+            </div>
+        </div>
+    </div>
+    
+</div>
 {% endblock %}
 
 {% block scripts %}

@@ -33,6 +33,10 @@ adafruit-blinka>=8.0.0
 # max6675 - Substituído por implementação nativa
 # MAX6675 - Substituído por implementação nativa
 
-# Para desenvolvimento (opcionais)
-# matplotlib>=3.5.0  # para análises avançadas
+# Para desenvolvimento e relatórios
+matplotlib>=3.5.0  # para análises avançadas e geração de PDF
+reportlab>=4.0.0   # para geração de PDFs
+Pillow>=9.0.0      # para processamento de imagens no PDF
+
+# Para gráficos interativos (opcional)
 # plotly>=5.0.0       # para gráficos interativos

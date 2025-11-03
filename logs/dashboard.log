@@ -1,1 +1,4 @@
-websocket-client package not installed, only polling transport is available
+Traceback (most recent call last):
+  File "/Users/rogerioalencarfilho/Projetos/iot/tempPi/dashboard.py", line 11, in <module>
+    import board
+ModuleNotFoundError: No module named 'board'

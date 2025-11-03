@@ -38,6 +38,9 @@
                         <button class="btn btn-success" id="auto-refresh" data-active="false">
                             <i class="fas fa-play"></i> Auto-refresh
                         </button>
+                        <button class="btn btn-warning" id="send-email">
+                            <i class="fas fa-envelope"></i> Enviar por Email
+                        </button>
                     </div>
                     
                     <div class="col-md-6">
@@ -223,4 +226,92 @@
         }
     }
 </style>
+
+<!-- Modal de Envio por Email -->
+<div class="modal fade" id="emailModal" tabindex="-1" aria-labelledby="emailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="emailModalLabel">
+                    <i class="fas fa-envelope"></i> Enviar Relatório por Email
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="email-form">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="recipient-email" class="form-label">Email Destinatário *</label>
+                            <input type="email" class="form-control" id="recipient-email" required 
+                                   placeholder="exemplo@email.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="recipient-name" class="form-label">Nome do Destinatário</label>
+                            <input type="text" class="form-control" id="recipient-name" 
+                                   placeholder="Nome do destinatário">
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="email-period" class="form-label">Período do Relatório</label>
+                            <select class="form-select" id="email-period">
+                                <option value="1">Última 1 hora</option>
+                                <option value="6">Últimas 6 horas</option>
+                                <option value="24" selected>Últimas 24 horas</option>
+                                <option value="72">Últimos 3 dias</option>
+                                <option value="168">Última semana</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="email-subject" class="form-label">Assunto do Email</label>
+                            <input type="text" class="form-control" id="email-subject" 
+                                   value="Relatório de {{ sensor_name }} - TempPi">
+                        </div>
+                        
+                        <div class="col-12">
+                            <label class="form-label">Conteúdo a Incluir</label>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="include-chart" checked>
+                                        <label class="form-check-label" for="include-chart">
+                                            Gráfico do sensor
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="include-stats" checked>
+                                        <label class="form-check-label" for="include-stats">
+                                            Estatísticas
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="include-raw-data">
+                                        <label class="form-check-label" for="include-raw-data">
+                                            Dados brutos (CSV)
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-12">
+                            <label for="email-message" class="form-label">Mensagem Adicional</label>
+                            <textarea class="form-control" id="email-message" rows="3" 
+                                      placeholder="Digite uma mensagem adicional para o destinatário..."></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="send-email-btn">
+                    <i class="fas fa-paper-plane"></i> Enviar Email
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

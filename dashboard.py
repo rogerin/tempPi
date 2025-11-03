@@ -1100,12 +1100,12 @@ def run_startup_test():
     
     # Desligar tudo
     state['actuators']['tambor_pul'] = False
-        apply_actuator_state()
-        if SIO_CONNECTED:
-            try:
-                sio.emit('dashboard_update', state, namespace='/dashboard')
-            except Exception as e:
-                print(f"Falha ao emitir dashboard_update: {e}")
+    apply_actuator_state()
+    if SIO_CONNECTED:
+        try:
+            sio.emit('dashboard_update', state, namespace='/dashboard')
+        except Exception as e:
+            print(f"Falha ao emitir dashboard_update: {e}")
     
     # Restaurar modo original
     state['settings']['system_mode'] = original_mode

@@ -55,7 +55,10 @@ def index():
         cursor.execute("SELECT COUNT(1) FROM sensor_readings")
         total_readings = cursor.fetchone()[0] or 0
 
-        cursor.execute("SELECT COUNT(1) FROM sensor_readings WHERE timestamp >= datetime('now','-1 day')")
+        # Período de 24h com horário do Brasil
+        now_br = get_brazil_time()
+        start_24h = (now_br - timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')
+        cursor.execute("SELECT COUNT(1) FROM sensor_readings WHERE timestamp >= ?", (start_24h,))
         readings_24h = cursor.fetchone()[0] or 0
 
         cursor.execute("""
@@ -261,7 +264,9 @@ def api_stats():
         cursor.execute("SELECT COUNT(1) FROM sensor_readings")
         total_readings = cursor.fetchone()[0] or 0
 
-        cursor.execute("SELECT COUNT(1) FROM sensor_readings WHERE timestamp >= datetime('now','-1 day')")
+        now_br = get_brazil_time()
+        start_24h = (now_br - timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')
+        cursor.execute("SELECT COUNT(1) FROM sensor_readings WHERE timestamp >= ?", (start_24h,))
         readings_24h = cursor.fetchone()[0] or 0
 
         cursor.execute("SELECT DISTINCT sensor_name FROM sensor_readings")
@@ -339,17 +344,21 @@ def api_sensor_data(sensor_name):
     """Retorna dados históricos de um sensor específico."""
     try:
         hours = int(request.args.get('hours', 24))
-        start_time = f"datetime('now', '-{hours} hours')"
+        # Início baseado no horário de Brasília
+        start_time = (get_brazil_time() - timedelta(hours=hours)).strftime('%Y-%m-%d %H:%M:%S')
         
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
-        cursor.execute(f"""
+        cursor.execute(
+            """
             SELECT timestamp, temperature, pressure, velocity, sensor_type, mode
             FROM sensor_readings
-            WHERE sensor_name = ? AND timestamp >= {start_time}
+            WHERE sensor_name = ? AND timestamp >= ?
             ORDER BY timestamp ASC
-        """, (sensor_name,))
+            """,
+            (sensor_name, start_time)
+        )
         
         rows = cursor.fetchall()
         conn.close()
@@ -388,9 +397,11 @@ def api_all_sensors_data():
             where_clause = "WHERE timestamp >= ? AND timestamp <= ?"
             params = [start_time, end_time]
         else:
-            # Período por horas
-            where_clause = "WHERE timestamp >= datetime('now', '-{} hours')".format(hours)
-            params = []
+            # Período por horas com horário do Brasil
+            now_br = get_brazil_time()
+            start_br = (now_br - timedelta(hours=hours)).strftime('%Y-%m-%d %H:%M:%S')
+            where_clause = "WHERE timestamp >= ?"
+            params = [start_br]
         
         # Query base
         base_query = '''
@@ -704,8 +715,11 @@ def api_generate_pdf():
             where_clause = "WHERE timestamp >= ? AND timestamp <= ?"
             params = [start_time, end_time]
         else:
-            where_clause = "WHERE timestamp >= datetime('now', '-{} hours')".format(time_range)
-            params = []
+            # Período por horas com horário do Brasil
+            now_br = get_brazil_time()
+            start_br = (now_br - timedelta(hours=int(time_range))).strftime('%Y-%m-%d %H:%M:%S')
+            where_clause = "WHERE timestamp >= ?"
+            params = [start_br]
         
         base_query = '''
             SELECT 

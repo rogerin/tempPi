@@ -141,7 +141,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (testModal) testModal.show();
         
         // Limpar resultado anterior
-        document.getElementById('test-result').innerHTML = `
+        const testResultElement = document.getElementById('test-result');
+        testResultElement.innerHTML = `
             <div class="text-center">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Testando...</span>
@@ -150,19 +151,26 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
 
+        // Criar AbortController para timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
+
         try {
             const response = await fetch('/api/config/test-smtp', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(formData),
+                signal: controller.signal
             });
+
+            clearTimeout(timeoutId);
 
             const result = await response.json();
             
             if (response.ok && result.success) {
-                document.getElementById('test-result').innerHTML = `
+                testResultElement.innerHTML = `
                     <div class="alert alert-success">
                         <i class="fas fa-check-circle"></i>
                         <strong>Sucesso!</strong> Conexão SMTP funcionando corretamente.
@@ -171,7 +179,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
                 updateStatus(formData, true);
             } else {
-                document.getElementById('test-result').innerHTML = `
+                testResultElement.innerHTML = `
                     <div class="alert alert-danger">
                         <i class="fas fa-times-circle"></i>
                         <strong>Falha!</strong> ${result.error || 'Erro desconhecido'}
@@ -180,11 +188,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
             }
         } catch (error) {
+            clearTimeout(timeoutId);
             console.error('Erro no teste SMTP:', error);
-            document.getElementById('test-result').innerHTML = `
+            
+            let errorMessage = 'Falha na comunicação com o servidor.';
+            if (error.name === 'AbortError') {
+                errorMessage = 'Timeout na conexão. O servidor demorou muito para responder.';
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+            
+            testResultElement.innerHTML = `
                 <div class="alert alert-danger">
                     <i class="fas fa-times-circle"></i>
-                    <strong>Erro!</strong> Falha na comunicação com o servidor.
+                    <strong>Erro!</strong> ${errorMessage}
                 </div>
             `;
         }

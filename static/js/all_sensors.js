@@ -39,10 +39,22 @@ const sensorNames = {
     'velocity': 'Velocidade'
 };
 
+// Intervalos de atualização
+let currentValuesInterval = null;
+let recentDataInterval = null;
+
 // Inicialização
 document.addEventListener('DOMContentLoaded', function() {
     initializeEventListeners();
     loadChart();
+    loadCurrentValues();
+    loadRecentData();
+    
+    // Atualizar valores atuais a cada 5 segundos
+    currentValuesInterval = setInterval(loadCurrentValues, 5000);
+    
+    // Atualizar dados recentes a cada 10 segundos
+    recentDataInterval = setInterval(loadRecentData, 10000);
 });
 
 function initializeEventListeners() {
@@ -386,6 +398,112 @@ function updateLastUpdateTime() {
     if (element) {
         element.textContent = new Date().toLocaleString('pt-BR');
     }
+}
+
+// Carregar valores atuais
+async function loadCurrentValues() {
+    try {
+        const response = await fetch('/api/all-sensors/latest');
+        if (!response.ok) throw new Error('Falha ao carregar valores atuais');
+        
+        const data = await response.json();
+        
+        // Atualizar valores de temperatura
+        updateElement('temp-forno-current', data.temp_forno, '°C');
+        updateElement('torre-1-current', data.torre_nivel_1, '°C');
+        updateElement('torre-2-current', data.torre_nivel_2, '°C');
+        updateElement('torre-3-current', data.torre_nivel_3, '°C');
+        updateElement('temp-tanque-current', data.temp_tanque, '°C');
+        updateElement('temp-gases-current', data.temp_gases, '°C');
+        
+        // Atualizar pressão (com conversão de unidade se necessário)
+        if (data.pressao_gases !== null) {
+            const pressao = currentPressureUnit === 'bar' 
+                ? (data.pressao_gases * 0.0689476).toFixed(2)
+                : data.pressao_gases.toFixed(2);
+            document.getElementById('pressao-current').textContent = 
+                `${pressao} ${currentPressureUnit.toUpperCase()}`;
+        } else {
+            document.getElementById('pressao-current').textContent = '- PSI';
+        }
+        
+        // Atualizar velocidade
+        updateElement('velocity-current', data.velocity, ' rpm');
+        
+        // Atualizar modo
+        const modeElement = document.getElementById('mode-current');
+        if (modeElement) {
+            modeElement.textContent = data.mode === 1 ? 'Manual' : 'Automático';
+        }
+        
+    } catch (error) {
+        console.error('Erro ao carregar valores atuais:', error);
+    }
+}
+
+// Helper para atualizar elementos
+function updateElement(id, value, unit = '') {
+    const element = document.getElementById(id);
+    if (element) {
+        if (value !== null && value !== undefined) {
+            element.textContent = `${value}${unit}`;
+        } else {
+            element.textContent = `-${unit}`;
+        }
+    }
+}
+
+// Carregar dados recentes
+async function loadRecentData() {
+    try {
+        const response = await fetch('/api/all-sensors/recent?limit=20');
+        if (!response.ok) throw new Error('Falha ao carregar dados recentes');
+        
+        const data = await response.json();
+        const tbody = document.getElementById('recent-data');
+        
+        if (!tbody) return;
+        
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center">Nenhum dado disponível</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = data.map(row => {
+            const timestamp = new Date(row.timestamp).toLocaleString('pt-BR');
+            const mode = row.mode === 1 ? 'Manual' : 'Automático';
+            
+            return `
+                <tr>
+                    <td>${timestamp}</td>
+                    <td>${formatValue(row.temp_forno, '°C')}</td>
+                    <td>${formatValue(row.torre_nivel_1, '°C')}</td>
+                    <td>${formatValue(row.torre_nivel_2, '°C')}</td>
+                    <td>${formatValue(row.torre_nivel_3, '°C')}</td>
+                    <td>${formatValue(row.temp_tanque, '°C')}</td>
+                    <td>${formatValue(row.temp_gases, '°C')}</td>
+                    <td>${formatValue(row.pressao_gases, ' PSI')}</td>
+                    <td>${formatValue(row.velocity, ' rpm')}</td>
+                    <td>${mode}</td>
+                </tr>
+            `;
+        }).join('');
+        
+    } catch (error) {
+        console.error('Erro ao carregar dados recentes:', error);
+        const tbody = document.getElementById('recent-data');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-danger">Erro ao carregar dados</td></tr>';
+        }
+    }
+}
+
+// Helper para formatar valores
+function formatValue(value, unit = '') {
+    if (value === null || value === undefined) {
+        return '-';
+    }
+    return `${value}${unit}`;
 }
 
 // Função de toast (se não existir)

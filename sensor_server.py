@@ -507,6 +507,128 @@ def api_all_sensors_data():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/all-sensors/latest')
+def api_all_sensors_latest():
+    """Retorna o último registro consolidado de todos os sensores."""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Buscar o último timestamp com dados
+        cursor.execute('''
+            SELECT 
+                timestamp,
+                MAX(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END) as temp_forno,
+                MAX(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END) as torre_nivel_1,
+                MAX(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END) as torre_nivel_2,
+                MAX(CASE WHEN sensor_name = 'Torre Nível 3' THEN temperature END) as torre_nivel_3,
+                MAX(CASE WHEN sensor_name = 'Temp Tanque' THEN temperature END) as temp_tanque,
+                MAX(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END) as temp_gases,
+                MAX(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END) as pressao_gases,
+                MAX(CASE WHEN sensor_name = 'Velocidade' THEN velocity END) as velocity,
+                MAX(mode) as mode
+            FROM sensor_readings
+            WHERE timestamp = (SELECT MAX(timestamp) FROM sensor_readings)
+            GROUP BY timestamp
+        ''')
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            return jsonify({
+                'timestamp': None,
+                'temp_forno': None,
+                'torre_nivel_1': None,
+                'torre_nivel_2': None,
+                'torre_nivel_3': None,
+                'temp_tanque': None,
+                'temp_gases': None,
+                'pressao_gases': None,
+                'velocity': None,
+                'mode': None
+            })
+        
+        return jsonify({
+            'timestamp': row[0],
+            'temp_forno': round(row[1], 2) if row[1] is not None else None,
+            'torre_nivel_1': round(row[2], 2) if row[2] is not None else None,
+            'torre_nivel_2': round(row[3], 2) if row[3] is not None else None,
+            'torre_nivel_3': round(row[4], 2) if row[4] is not None else None,
+            'temp_tanque': round(row[5], 2) if row[5] is not None else None,
+            'temp_gases': round(row[6], 2) if row[6] is not None else None,
+            'pressao_gases': round(row[7], 2) if row[7] is not None else None,
+            'velocity': round(row[8], 2) if row[8] is not None else None,
+            'mode': row[9]
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/all-sensors/recent')
+def api_all_sensors_recent():
+    """Retorna os últimos N registros consolidados de todos os sensores."""
+    try:
+        limit = request.args.get('limit', 20, type=int)
+        
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Buscar últimos N timestamps únicos
+        cursor.execute('''
+            SELECT DISTINCT timestamp
+            FROM sensor_readings
+            ORDER BY timestamp DESC
+            LIMIT ?
+        ''', (limit,))
+        
+        timestamps = [row[0] for row in cursor.fetchall()]
+        
+        if not timestamps:
+            conn.close()
+            return jsonify([])
+        
+        # Buscar dados consolidados para esses timestamps
+        placeholders = ','.join(['?'] * len(timestamps))
+        cursor.execute(f'''
+            SELECT 
+                timestamp,
+                MAX(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END) as temp_forno,
+                MAX(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END) as torre_nivel_1,
+                MAX(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END) as torre_nivel_2,
+                MAX(CASE WHEN sensor_name = 'Torre Nível 3' THEN temperature END) as torre_nivel_3,
+                MAX(CASE WHEN sensor_name = 'Temp Tanque' THEN temperature END) as temp_tanque,
+                MAX(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END) as temp_gases,
+                MAX(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END) as pressao_gases,
+                MAX(CASE WHEN sensor_name = 'Velocidade' THEN velocity END) as velocity,
+                MAX(mode) as mode
+            FROM sensor_readings
+            WHERE timestamp IN ({placeholders})
+            GROUP BY timestamp
+            ORDER BY timestamp DESC
+        ''', timestamps)
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        data = []
+        for row in rows:
+            data.append({
+                'timestamp': row[0],
+                'temp_forno': round(row[1], 2) if row[1] is not None else None,
+                'torre_nivel_1': round(row[2], 2) if row[2] is not None else None,
+                'torre_nivel_2': round(row[3], 2) if row[3] is not None else None,
+                'torre_nivel_3': round(row[4], 2) if row[4] is not None else None,
+                'temp_tanque': round(row[5], 2) if row[5] is not None else None,
+                'temp_gases': round(row[6], 2) if row[6] is not None else None,
+                'pressao_gases': round(row[7], 2) if row[7] is not None else None,
+                'velocity': round(row[8], 2) if row[8] is not None else None,
+                'mode': row[9]
+            })
+        
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 def get_group_interval(group_by):
     """Converte string de agrupamento para segundos."""
     intervals = {
@@ -638,6 +760,7 @@ def api_pressure_calibration():
 @app.route('/api/config/test-smtp', methods=['POST'])
 def api_test_smtp():
     """Testa conexão SMTP."""
+    server = None
     try:
         data = request.get_json()
         
@@ -645,6 +768,7 @@ def api_test_smtp():
         import smtplib
         from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
+        import socket
         
         # Configurar conexão
         smtp_host = data.get('smtp_host')
@@ -675,15 +799,15 @@ def api_test_smtp():
         
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
         
-        # Testar conexão
-        server = smtplib.SMTP(smtp_host, smtp_port)
+        # Testar conexão com timeout
+        server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
+        server.set_debuglevel(0)  # Desabilitar logs verbosos
         server.starttls()  # Habilitar TLS
         server.login(smtp_user, smtp_password)
         
         # Enviar email de teste
         text = msg.as_string()
         server.sendmail(sender_email, sender_email, text)
-        server.quit()
         
         return jsonify({
             'success': True,
@@ -700,11 +824,28 @@ def api_test_smtp():
             'success': False,
             'error': 'Falha na conexão. Verifique servidor e porta.'
         }), 400
+    except socket.timeout:
+        return jsonify({
+            'success': False,
+            'error': 'Timeout na conexão. O servidor SMTP não respondeu a tempo.'
+        }), 408
+    except socket.gaierror:
+        return jsonify({
+            'success': False,
+            'error': 'Servidor SMTP não encontrado. Verifique o endereço.'
+        }), 400
     except Exception as e:
         return jsonify({
             'success': False,
             'error': f'Erro inesperado: {str(e)}'
         }), 500
+    finally:
+        # Garantir que a conexão seja fechada
+        if server:
+            try:
+                server.quit()
+            except:
+                pass
 
 @app.route('/api/reports/generate-pdf', methods=['POST'])
 def api_generate_pdf():

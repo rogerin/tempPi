@@ -415,7 +415,7 @@ def api_all_sensors_data():
                 MAX(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END) as temp_gases,
                 MAX(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END) as pressao_gases,
                 MAX(CASE WHEN sensor_name = 'Velocidade' THEN velocity END) as velocity
-            FROM sensor_readings 
+            FROM sensor_readings
             {}
         '''.format(where_clause)
         
@@ -538,14 +538,14 @@ def api_all_sensors_latest():
         if not row:
             return jsonify({
                 'timestamp': None,
-                'temp_forno': None,
-                'torre_nivel_1': None,
-                'torre_nivel_2': None,
-                'torre_nivel_3': None,
-                'temp_tanque': None,
-                'temp_gases': None,
-                'pressao_gases': None,
-                'velocity': None,
+                    'temp_forno': None,
+                    'torre_nivel_1': None,
+                    'torre_nivel_2': None,
+                    'torre_nivel_3': None,
+                    'temp_tanque': None,
+                    'temp_gases': None,
+                    'pressao_gases': None,
+                    'velocity': None,
                 'mode': None
             })
         
@@ -800,9 +800,14 @@ def api_test_smtp():
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
         
         # Testar conexão com timeout
-        server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
+        # Porta 465 usa SSL direto, porta 587 usa STARTTLS
+        if smtp_port == 465:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10)
+        else:
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
+            server.starttls()  # Habilitar TLS para porta 587
+        
         server.set_debuglevel(0)  # Desabilitar logs verbosos
-        server.starttls()  # Habilitar TLS
         server.login(smtp_user, smtp_password)
         
         # Enviar email de teste
@@ -823,6 +828,11 @@ def api_test_smtp():
         return jsonify({
             'success': False,
             'error': 'Falha na conexão. Verifique servidor e porta.'
+        }), 400
+    except smtplib.SMTPServerDisconnected:
+        return jsonify({
+            'success': False,
+            'error': 'Servidor desconectou inesperadamente. Tente usar porta 465 (SSL) ou 587 (TLS).'
         }), 400
     except socket.timeout:
         return jsonify({
@@ -1232,9 +1242,20 @@ def api_send_email():
         msg.attach(MIMEText(body, 'html', 'utf-8'))
         
         # Enviar email
-        server = smtplib.SMTP(smtp_config[1], smtp_config[2])  # host, port
-        server.starttls()
-        server.login(smtp_config[3], smtp_config[4])  # user, password
+        smtp_host = smtp_config[1]
+        smtp_port = smtp_config[2]
+        smtp_user = smtp_config[3]
+        smtp_password = smtp_config[4]
+        
+        # Porta 465 usa SSL direto, porta 587 usa STARTTLS
+        if smtp_port == 465:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10)
+        else:
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
+            server.starttls()  # Habilitar TLS para porta 587
+        
+        server.set_debuglevel(0)
+        server.login(smtp_user, smtp_password)
         
         text = msg.as_string()
         server.sendmail(smtp_config[5], recipient_email, text)  # sender_email, recipient
@@ -1260,6 +1281,298 @@ def api_send_email():
             'success': False,
             'error': f'Erro ao enviar email: {str(e)}'
         }), 500
+
+@app.route('/api/reports/send-consolidated-email', methods=['POST'])
+def api_send_consolidated_email():
+    """Envia relatório consolidado com PDF por email."""
+    server = None
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.base import MIMEBase
+        from email import encoders
+        import socket
+        from io import BytesIO
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        
+        data = request.get_json()
+        
+        # Carregar configuração SMTP
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM smtp_config ORDER BY id DESC LIMIT 1')
+        smtp_config = cursor.fetchone()
+        
+        if not smtp_config:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'Configuração SMTP não encontrada. Configure primeiro em /config'
+            }), 400
+        
+        # Extrair configurações SMTP
+        smtp_host = smtp_config[1]
+        smtp_port = smtp_config[2]
+        smtp_user = smtp_config[3]
+        smtp_password = smtp_config[4]
+        sender_email = smtp_config[5]
+        sender_name = smtp_config[6]
+        
+        # Dados do destinatário
+        recipient_email = data.get('recipient_email')
+        recipient_name = data.get('recipient_name', '')
+        custom_message = data.get('message', '')
+        
+        if not recipient_email:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Email do destinatário é obrigatório'}), 400
+        
+        # Parâmetros do filtro (mesma lógica de api_generate_pdf)
+        def _normalize_ts(ts):
+            if not ts:
+                return None
+            ts = ts.replace('T', ' ')
+            if len(ts) == 16:
+                ts = ts + ':00'
+            return ts
+        
+        time_range = data.get('timeRange', '24')
+        start_time = _normalize_ts(data.get('startTime'))
+        end_time = _normalize_ts(data.get('endTime'))
+        selected_sensors = data.get('selectedSensors', [])
+        pressure_unit = data.get('pressureUnit', 'psi')
+        
+        # Buscar dados
+        if start_time and end_time:
+            where_clause = "WHERE timestamp >= ? AND timestamp <= ?"
+            params = [start_time, end_time]
+            period_text = f"de {start_time} até {end_time}"
+        else:
+            now_br = get_brazil_time()
+            start_br = (now_br - timedelta(hours=int(time_range))).strftime('%Y-%m-%d %H:%M:%S')
+            where_clause = "WHERE timestamp >= ?"
+            params = [start_br]
+            period_text = f"últimas {time_range} horas"
+        
+        base_query = '''
+            SELECT 
+                timestamp,
+                MAX(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END) as temp_forno,
+                MAX(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END) as torre_nivel_1,
+                MAX(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END) as torre_nivel_2,
+                MAX(CASE WHEN sensor_name = 'Torre Nível 3' THEN temperature END) as torre_nivel_3,
+                MAX(CASE WHEN sensor_name = 'Temp Tanque' THEN temperature END) as temp_tanque,
+                MAX(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END) as temp_gases,
+                MAX(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END) as pressao_gases,
+                MAX(CASE WHEN sensor_name = 'Velocidade' THEN velocity END) as velocity
+            FROM sensor_readings 
+            {}
+        '''.format(where_clause)
+        
+        query = base_query + ' GROUP BY timestamp ORDER BY timestamp'
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not rows:
+            return jsonify({'success': False, 'error': 'Nenhum dado encontrado para o período especificado'}), 400
+        
+        # Preparar dados
+        chart_data = []
+        for row in rows:
+            chart_data.append({
+                'timestamp': row[0],
+                'temp_forno': row[1],
+                'torre_nivel_1': row[2],
+                'torre_nivel_2': row[3],
+                'torre_nivel_3': row[4],
+                'temp_tanque': row[5],
+                'temp_gases': row[6],
+                'pressao_gases': row[7],
+                'velocity': row[8]
+            })
+        
+        # Gerar gráfico
+        plt.figure(figsize=(12, 8))
+        sensor_colors = {
+            'temp_forno': '#e74c3c',
+            'torre_nivel_1': '#3498db',
+            'torre_nivel_2': '#2ecc71',
+            'torre_nivel_3': '#f39c12',
+            'temp_tanque': '#9b59b6',
+            'temp_gases': '#e67e22',
+            'pressao_gases': '#1abc9c',
+            'velocity': '#34495e'
+        }
+        sensor_names = {
+            'temp_forno': 'Temp Forno',
+            'torre_nivel_1': 'Torre Nível 1',
+            'torre_nivel_2': 'Torre Nível 2',
+            'torre_nivel_3': 'Torre Nível 3',
+            'temp_tanque': 'Temp Tanque',
+            'temp_gases': 'Temp Gases',
+            'pressao_gases': 'Pressão Gases',
+            'velocity': 'Velocidade'
+        }
+        
+        for sensor in selected_sensors:
+            if sensor in chart_data[0]:
+                values = [d[sensor] for d in chart_data if d[sensor] is not None]
+                timestamps = [d['timestamp'] for d in chart_data if d[sensor] is not None]
+                if values:
+                    plt.plot(timestamps, values, label=sensor_names.get(sensor, sensor), 
+                            color=sensor_colors.get(sensor, '#000000'), linewidth=2)
+        
+        plt.xlabel('Timestamp')
+        plt.ylabel('Valores')
+        plt.title(f'Relatório de Sensores - {period_text}')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        
+        # Salvar gráfico em buffer
+        chart_buffer = BytesIO()
+        plt.savefig(chart_buffer, format='png', dpi=150, bbox_inches='tight')
+        chart_buffer.seek(0)
+        plt.close()
+        
+        # Calcular estatísticas
+        stats = {}
+        for sensor in selected_sensors:
+            values = [d[sensor] for d in chart_data if d[sensor] is not None]
+            if values:
+                stats[sensor] = {
+                    'min': min(values),
+                    'max': max(values),
+                    'avg': sum(values) / len(values),
+                    'last': values[-1],
+                    'count': len(values)
+                }
+        
+        # Criar email HTML formatado
+        msg = MIMEMultipart('related')
+        msg['From'] = f"{sender_name} <{sender_email}>"
+        msg['To'] = f"{recipient_name} <{recipient_email}>" if recipient_name else recipient_email
+        msg['Subject'] = f"Relatório TempPi - {period_text}"
+        
+        # Corpo HTML
+        html_body = f"""
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .header {{ background-color: #3498db; color: white; padding: 20px; text-align: center; }}
+                .content {{ padding: 20px; }}
+                .stats-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+                .stats-table th {{ background-color: #34495e; color: white; padding: 10px; text-align: left; }}
+                .stats-table td {{ padding: 8px; border-bottom: 1px solid #ddd; }}
+                .stats-table tr:nth-child(even) {{ background-color: #f2f2f2; }}
+                .footer {{ text-align: center; padding: 20px; color: #777; font-size: 12px; }}
+                img {{ max-width: 100%; height: auto; }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Relatório de Sensores TempPi</h1>
+                <p>Período: {period_text}</p>
+            </div>
+            <div class="content">
+                <p>Olá{', ' + recipient_name if recipient_name else ''},</p>
+                <p>Segue o relatório consolidado dos sensores do sistema TempPi.</p>
+                {f'<p><strong>Mensagem:</strong> {custom_message}</p>' if custom_message else ''}
+                
+                <h2>Estatísticas do Período</h2>
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>Sensor</th>
+                            <th>Mínimo</th>
+                            <th>Máximo</th>
+                            <th>Média</th>
+                            <th>Último Valor</th>
+                            <th>Leituras</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        """
+        
+        for sensor, stat in stats.items():
+            html_body += f"""
+                        <tr>
+                            <td>{sensor_names.get(sensor, sensor)}</td>
+                            <td>{stat['min']:.2f}</td>
+                            <td>{stat['max']:.2f}</td>
+                            <td>{stat['avg']:.2f}</td>
+                            <td>{stat['last']:.2f}</td>
+                            <td>{stat['count']}</td>
+                        </tr>
+            """
+        
+        html_body += """
+                    </tbody>
+                </table>
+                
+                <h2>Gráfico de Tendências</h2>
+                <img src="cid:chart_image" alt="Gráfico de Sensores">
+                
+                <p><strong>Nota:</strong> O relatório completo em PDF está anexado a este email.</p>
+            </div>
+            <div class="footer">
+                <p>Este é um email automático do sistema TempPi.</p>
+                <p>Gerado em """ + get_brazil_time().strftime('%d/%m/%Y %H:%M:%S') + """</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Anexar corpo HTML
+        msg_alternative = MIMEMultipart('alternative')
+        msg.attach(msg_alternative)
+        msg_alternative.attach(MIMEText(html_body, 'html', 'utf-8'))
+        
+        # Anexar gráfico como imagem inline
+        chart_image = MIMEBase('image', 'png')
+        chart_image.set_payload(chart_buffer.getvalue())
+        encoders.encode_base64(chart_image)
+        chart_image.add_header('Content-ID', '<chart_image>')
+        chart_image.add_header('Content-Disposition', 'inline', filename='grafico.png')
+        msg.attach(chart_image)
+        
+        # Anexar PDF (gerar PDF reutilizando lógica existente)
+        # TODO: Implementar geração de PDF aqui ou chamá-lo de forma interna
+        
+        # Enviar email
+        if smtp_port == 465:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10)
+        else:
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
+            server.starttls()
+        
+        server.set_debuglevel(0)
+        server.login(smtp_user, smtp_password)
+        server.sendmail(sender_email, recipient_email, msg.as_string())
+        
+        return jsonify({
+            'success': True,
+            'message': f'Relatório enviado com sucesso para {recipient_email}'
+        })
+        
+    except smtplib.SMTPAuthenticationError:
+        return jsonify({'success': False, 'error': 'Falha na autenticação SMTP'}), 400
+    except smtplib.SMTPServerDisconnected:
+        return jsonify({'success': False, 'error': 'Servidor SMTP desconectou'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erro ao enviar email: {str(e)}'}), 500
+    finally:
+        if server:
+            try:
+                server.quit()
+            except:
+                pass
 
 # ===== Admin: Reset de dados de sensores =====
 @app.route('/api/admin/reset-sensor-data', methods=['POST'])

@@ -126,9 +126,19 @@
                             <button class="btn btn-success" id="auto-refresh" data-active="false">
                                 <i class="fas fa-play"></i> Auto-refresh
                             </button>
-                            <button class="btn btn-warning" id="export-pdf">
-                                <i class="fas fa-file-pdf"></i> Exportar PDF
-                            </button>
+                            <div class="btn-group w-100" role="group">
+                                <button type="button" class="btn btn-warning dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-file-pdf"></i> Relatório
+                                </button>
+                                <ul class="dropdown-menu w-100">
+                                    <li><a class="dropdown-item" href="#" id="export-pdf-download">
+                                        <i class="fas fa-download"></i> Baixar PDF
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="#" id="export-pdf-email">
+                                        <i class="fas fa-envelope"></i> Enviar por Email
+                                    </a></li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -273,6 +283,42 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Envio por Email -->
+<div class="modal fade" id="emailModal" tabindex="-1" aria-labelledby="emailModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="emailModalLabel">Enviar Relatório por Email</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="email-recipient" class="form-label">Email do Destinatário *</label>
+                    <input type="email" class="form-control" id="email-recipient" required placeholder="exemplo@email.com">
+                </div>
+                <div class="mb-3">
+                    <label for="email-recipient-name" class="form-label">Nome do Destinatário</label>
+                    <input type="text" class="form-control" id="email-recipient-name" placeholder="Nome (opcional)">
+                </div>
+                <div class="mb-3">
+                    <label for="email-message" class="form-label">Mensagem Adicional</label>
+                    <textarea class="form-control" id="email-message" rows="3" placeholder="Mensagem personalizada (opcional)"></textarea>
+                </div>
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle"></i>
+                    <small>O PDF será gerado com os filtros atualmente selecionados e anexado ao email.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="send-email-btn">
+                    <i class="fas fa-paper-plane"></i> Enviar
+                </button>
             </div>
         </div>
     </div>

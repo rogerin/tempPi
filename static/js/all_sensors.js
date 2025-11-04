@@ -98,7 +98,29 @@ function initializeEventListeners() {
     // Botões
     document.getElementById('update-chart').addEventListener('click', loadChart);
     document.getElementById('auto-refresh').addEventListener('click', toggleAutoRefresh);
-    document.getElementById('export-pdf').addEventListener('click', exportToPDF);
+    
+    // Dropdown de relatório
+    const downloadBtn = document.getElementById('export-pdf-download');
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            exportToPDF();
+        });
+    }
+    
+    const emailBtn = document.getElementById('export-pdf-email');
+    if (emailBtn) {
+        emailBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            openEmailModal();
+        });
+    }
+    
+    // Botão enviar email
+    const sendEmailBtn = document.getElementById('send-email-btn');
+    if (sendEmailBtn) {
+        sendEmailBtn.addEventListener('click', sendEmailReport);
+    }
 }
 
 function updateFilters() {
@@ -177,7 +199,7 @@ function renderAllSensorsChart(data) {
     // Configurar datasets baseado nos sensores selecionados
     const datasets = [];
     
-    // Temperaturas (Eixo Y Esquerdo)
+        // Temperaturas (Eixo Y Esquerdo)
     const tempSensors = ['temp_forno', 'torre_nivel_1', 'torre_nivel_2', 'torre_nivel_3', 'temp_tanque', 'temp_gases'];
     tempSensors.forEach(sensor => {
         if (currentFilters.selectedSensors.includes(sensor)) {
@@ -186,9 +208,9 @@ function renderAllSensorsChart(data) {
                 data: limitedData.map(d => ({ x: d.x, y: d[sensor] })).filter(d => d.y !== null),
                 borderColor: sensorColors[sensor],
                 backgroundColor: sensorColors[sensor] + '20',
-                fill: false,
+            fill: false,
                 tension: 0.1,
-                yAxisID: 'y'
+            yAxisID: 'y'
             });
         }
     });
@@ -259,9 +281,9 @@ function renderAllSensorsChart(data) {
                     type: 'linear',
                     display: true,
                     position: 'right',
-                    title: {
-                        display: true,
-                        text: `Pressão (${currentPressureUnit.toUpperCase()})`
+                    title: { 
+                        display: true, 
+                        text: `Pressão (${currentPressureUnit.toUpperCase()})` 
                     },
                     grid: {
                         drawOnChartArea: false,
@@ -269,7 +291,7 @@ function renderAllSensorsChart(data) {
                 }
             },
             plugins: {
-                legend: {
+                legend: { 
                     position: 'top',
                 },
                 tooltip: {
@@ -287,7 +309,7 @@ function renderAllSensorsChart(data) {
                                     label += context.parsed.y.toFixed(2) + ' ' + currentPressureUnit.toUpperCase();
                                 } else if (context.dataset.label === 'Velocidade') {
                                     label += context.parsed.y.toFixed(2);
-                                } else {
+                            } else {
                                     label += context.parsed.y.toFixed(1) + '°C';
                                 }
                             }
@@ -472,9 +494,9 @@ async function loadRecentData() {
         tbody.innerHTML = data.map(row => {
             const timestamp = new Date(row.timestamp).toLocaleString('pt-BR');
             const mode = row.mode === 1 ? 'Manual' : 'Automático';
-            
-            return `
-                <tr>
+        
+        return `
+            <tr>
                     <td>${timestamp}</td>
                     <td>${formatValue(row.temp_forno, '°C')}</td>
                     <td>${formatValue(row.torre_nivel_1, '°C')}</td>
@@ -485,9 +507,9 @@ async function loadRecentData() {
                     <td>${formatValue(row.pressao_gases, ' PSI')}</td>
                     <td>${formatValue(row.velocity, ' rpm')}</td>
                     <td>${mode}</td>
-                </tr>
-            `;
-        }).join('');
+            </tr>
+        `;
+    }).join('');
         
     } catch (error) {
         console.error('Erro ao carregar dados recentes:', error);
@@ -504,6 +526,80 @@ function formatValue(value, unit = '') {
         return '-';
     }
     return `${value}${unit}`;
+}
+
+// Abrir modal de envio por email
+function openEmailModal() {
+    const emailModal = new bootstrap.Modal(document.getElementById('emailModal'));
+    // Limpar campos
+    document.getElementById('email-recipient').value = '';
+    document.getElementById('email-recipient-name').value = '';
+    document.getElementById('email-message').value = '';
+    emailModal.show();
+}
+
+// Enviar relatório por email
+async function sendEmailReport() {
+    const recipient = document.getElementById('email-recipient').value.trim();
+    
+    if (!recipient) {
+        showToast('Informe o email do destinatário', 'warning');
+        return;
+    }
+    
+    // Validação básica de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(recipient)) {
+        showToast('Email inválido', 'warning');
+        return;
+    }
+    
+    // Atualizar filtros atuais
+    updateFilters();
+    
+    // Preparar payload
+    const payload = {
+        ...currentFilters,
+        recipient_email: recipient,
+        recipient_name: document.getElementById('email-recipient-name').value.trim(),
+        message: document.getElementById('email-message').value.trim()
+    };
+    
+    // Desabilitar botão e mostrar loading
+    const sendBtn = document.getElementById('send-email-btn');
+    const originalText = sendBtn.innerHTML;
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+    
+    try {
+        const response = await fetch('/api/reports/send-consolidated-email', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            showToast(result.message || 'Email enviado com sucesso!', 'success');
+            // Fechar modal
+            const emailModal = bootstrap.Modal.getInstance(document.getElementById('emailModal'));
+            if (emailModal) {
+                emailModal.hide();
+            }
+        } else {
+            showToast(result.error || 'Erro ao enviar email', 'danger');
+        }
+    } catch (error) {
+        console.error('Erro ao enviar email:', error);
+        showToast('Erro ao enviar email. Verifique sua conexão.', 'danger');
+    } finally {
+        // Restaurar botão
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = originalText;
+    }
 }
 
 // Função de toast (se não existir)

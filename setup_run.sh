@@ -63,7 +63,7 @@ check_dependencies() {
     echo "Verificando dependências instaladas..."
     
     # Pacotes essenciais
-    REQUIRED_PACKAGES=("flask" "flask-socketio" "numpy" "opencv-python" "python-socketio")
+    REQUIRED_PACKAGES=("flask" "flask-socketio" "numpy" "opencv-python" "python-socketio" "matplotlib" "reportlab" "Pillow")
     MISSING_PACKAGES=()
     
     for package in "${REQUIRED_PACKAGES[@]}"; do

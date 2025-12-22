@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Utilitários de máscara e normalização decimal (pt-BR)
     function normalizeDecimalString(value) {
         if (typeof value !== 'string') return '';
@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (gainEl) gainEl.value = formatDecimalBR(Number(cfg.gain ?? 1.0), 5);
                     if (offsetEl) offsetEl.value = formatDecimalBR(Number(cfg.offset ?? 0.0), 2);
                 }
-            } catch (_) {}
+            } catch (_) { }
             pressureCalibModal.show();
         });
     }
@@ -171,6 +171,65 @@ document.addEventListener('DOMContentLoaded', function() {
         const offsetInput = document.getElementById('calib_offset');
         if (gainInput) gainInput.addEventListener('input', doPreview);
         if (offsetInput) offsetInput.addEventListener('input', doPreview);
+    }
+
+    // Envio de Relatórios
+    const reportForm = document.getElementById('report-form');
+    if (reportForm) {
+        reportForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btn-send-report');
+            const originalText = btn.innerHTML;
+
+            // Loading state
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+
+            const startDate = document.getElementById('report_start_date').value;
+            const endDate = document.getElementById('report_end_date').value;
+            const email = document.getElementById('report_email').value;
+
+            try {
+                const resp = await fetch('/api/report/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        start_date: startDate,
+                        end_date: endDate,
+                        target_email: email
+                    })
+                });
+
+                const result = await resp.json();
+
+                if (resp.ok && result.success) {
+                    // Tenta usar showToast se disponível no escopo global (assumindo base.html ou similar)
+                    // Caso contrário, usa alert
+                    if (typeof showToast === 'function') {
+                        showToast(result.message, 'success');
+                    } else {
+                        alert(result.message);
+                    }
+                } else {
+                    const msg = result.error || 'Erro ao enviar relatório';
+                    if (typeof showToast === 'function') {
+                        showToast(msg, 'danger');
+                    } else {
+                        alert(msg);
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+                if (typeof showToast === 'function') {
+                    showToast('Erro de comunicação ao enviar relatório.', 'danger');
+                } else {
+                    alert('Erro de comunicação ao enviar relatório.');
+                }
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        });
     }
 
     // Conectar máscaras aos campos
@@ -302,18 +361,18 @@ document.addEventListener('DOMContentLoaded', function() {
         // Atualizar modo de operação
         const currentMode = state.settings['system_mode'] || 0;
         const radio = document.querySelector(`input[name="system_mode"][value="${currentMode}"]`);
-        if(radio) radio.checked = true;
+        if (radio) radio.checked = true;
         toggleManualControls(currentMode == 1);
 
         // Atualizar botão de aquecimento
         const currentHeatingStatus = state.settings['heating_status'] || 0;
         updateHeatingButton(currentHeatingStatus);
-        
+
         // Atualizar botões do tambor
         updateDrumButtons();
 
         // Atualizar estado dos botões manuais
-        if(currentMode == 1) {
+        if (currentMode == 1) {
             updateManualButton('manual-fan-btn', state.actuators.ventilador);
             updateManualButton('manual-screw-btn', state.actuators.motor_rosca);
             updateManualButton('manual-cooling-btn', state.actuators.ventilacao_resfriador);
@@ -341,7 +400,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const sensorMapping = {
             'Temp Forno': 'display_temp_forno',
             'Torre Nível 1': 'display_temp_torre1',
-            'Torre Nível 2': 'display_temp_torre2', 
+            'Torre Nível 2': 'display_temp_torre2',
             'Torre Nível 3': 'display_temp_torre3',
             'Temp Tanque': 'display_temp_tanque',
             'Temp Saída Gases': 'display_temp_gases',
@@ -376,7 +435,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'status_ventilacao_resfriador': actuators.ventilacao_resfriador,
             'status_tambor': actuators.tambor_pul // Considera ligado se pulso ativo
         };
-        
+
         Object.entries(statusMap).forEach(([id, isActive]) => {
             const element = document.getElementById(id);
             if (element) {
@@ -388,7 +447,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Atualizar direção do tambor
         const dirIcon = document.getElementById('tambor_direction_icon');
         const dirStatus = document.getElementById('status_tambor_dir');
-        
+
         if (dirIcon && dirStatus) {
             if (actuators.tambor_pul) {
                 if (actuators.tambor_dir) {
@@ -412,16 +471,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const updateBadge = (buttonId, target) => {
             const button = document.getElementById(buttonId);
             if (!button) return;
-            
+
             const badge = button.querySelector('.badge');
             if (!badge) return;
-            
+
             const isActive = state.actuators[target];
             badge.textContent = isActive ? 'Ligado' : 'Desligado';
             badge.className = `badge ms-2 ${isActive ? 'bg-success' : 'bg-secondary'}`;
             button.className = `btn ${isActive ? 'btn-success' : 'btn-outline-success'}`;
         };
-        
+
         updateBadge('manual-fan-btn', 'ventilador');
         updateBadge('manual-screw-btn', 'motor_rosca');
         updateBadge('manual-cooling-btn', 'ventilacao_resfriador');
@@ -453,7 +512,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const velocidadeTamborSlider = document.getElementById('velocidade_tambor');
     const velocidadeTamborDisplay = document.getElementById('velocidade_tambor_display');
     const velocidadeTamborRpm = document.getElementById('velocidade_tambor_rpm');
-    
+
 
     if (velocidadeTamborSlider) {
         velocidadeTamborSlider.addEventListener('input', (e) => {
@@ -461,12 +520,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const rpm = Math.round(hz * 0.3); // 200 passos/volta
             velocidadeTamborDisplay.textContent = `${hz} Hz`;
             velocidadeTamborRpm.textContent = `${rpm} RPM`;
-            
+
             // Atualizar no backend
             emitControlEvent('SET_SETTING', { name: 'velocidade_tambor', value: hz });
         });
     }
-    
+
 
     manualButtons.forEach(button => {
         const id = button.id;
@@ -500,11 +559,11 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateDrumButtons() {
         const fwdBtn = document.getElementById('manual-drum-fwd-btn');
         const revBtn = document.getElementById('manual-drum-rev-btn');
-        
+
         if (fwdBtn && revBtn && state.actuators) {
             const isFwdActive = state.actuators.tambor_pul && state.actuators.tambor_dir && state.actuators.tambor_ena;
             const isRevActive = state.actuators.tambor_pul && !state.actuators.tambor_dir && state.actuators.tambor_ena;
-            
+
             fwdBtn.classList.toggle('active', isFwdActive);
             revBtn.classList.toggle('active', isRevActive);
         }
@@ -518,7 +577,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateHeatingButton(status) {
         heatingBtn.dataset.status = status;
-        
+
         if (status == 1) {
             heatingBtn.classList.remove('btn-danger');
             heatingBtn.classList.add('btn-success');

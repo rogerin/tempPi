@@ -1329,6 +1329,10 @@ def api_report_send():
         # 2. Buscar Dados
         if len(start_date) == 10: start_date += " 00:00:00"
         if len(end_date) == 10: end_date += " 23:59:59"
+        
+        # Se vier com T (do datetime-local input), substituir por espaço
+        start_date = start_date.replace('T', ' ')
+        end_date = end_date.replace('T', ' ')
 
         cursor.execute(
             """
@@ -1417,6 +1421,7 @@ def api_report_send():
         # Título
         elements.append(Paragraph("Relatório do Sistema TempPi", styles['Title']))
         elements.append(Paragraph(f"Período: {start_date} até {end_date}", styles['Normal']))
+        elements.append(Paragraph(f"Total de Registros Processados: {len(rows)}", styles['Normal']))
 
         if operation_name:
             elements.append(Paragraph(f"<b>Operação:</b> {operation_name}", styles['Normal']))
@@ -1446,7 +1451,7 @@ def api_report_send():
             ('FONTSIZE', (0, 0), (-1, -1), 8),
         ]))
         elements.append(t)
-        elements.append(Paragraph(f"Total de Registros Processados: {len(rows)}", styles['Normal']))
+        # Removido do rodapé para o topo elements.append(Paragraph(f"Total de Registros Processados: {len(rows)}", styles['Normal']))
 
         if comments:
             elements.append(Spacer(1, 20))

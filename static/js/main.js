@@ -95,9 +95,9 @@ function showToast(message, type = 'info') {
         ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
-    
+
     document.body.appendChild(toast);
-    
+
     // Auto-remover após 5 segundos
     setTimeout(() => {
         if (toast.parentNode) {
@@ -126,7 +126,7 @@ async function loadSensorsDropdown() {
     try {
         const sensors = await fetchAPI('/api/sensors');
         const dropdown = document.getElementById('sensors-dropdown');
-        
+
         if (dropdown) {
             dropdown.innerHTML = '';
             sensors.forEach(sensor => {
@@ -147,7 +147,7 @@ async function loadSensorsDropdown() {
 // Carregar dados com filtros e paginação
 async function loadData(page = 1, filters = {}) {
     showLoading();
-    
+
     try {
         // Construir query string
         const params = new URLSearchParams({
@@ -155,18 +155,18 @@ async function loadData(page = 1, filters = {}) {
             per_page: 50,
             ...filters
         });
-        
+
         const data = await fetchAPI(`/api/sensors?${params}`);
-        
+
         // Atualizar tabela
         updateDataTable(data);
-        
+
         // Atualizar paginação
         // updatePagination(data.page, data.total_pages, data.total);
-        
+
         currentPage = page;
         currentFilters = filters;
-        
+
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
         document.getElementById('data-table').innerHTML = `
@@ -185,7 +185,7 @@ async function loadData(page = 1, filters = {}) {
 // Atualizar tabela de dados
 function updateDataTable(data) {
     const tbody = document.getElementById('data-table');
-    
+
     if (!data || data.length === 0) {
         tbody.innerHTML = `
             <tr>
@@ -197,7 +197,7 @@ function updateDataTable(data) {
         `;
         return;
     }
-    
+
     tbody.innerHTML = data.map(row => `
         <tr>
             <td>
@@ -237,14 +237,14 @@ function updateDataTable(data) {
 // Atualizar paginação
 function updatePagination(currentPage, totalPages, totalItems) {
     const pagination = document.getElementById('pagination');
-    
+
     if (totalPages <= 1) {
         pagination.innerHTML = '';
         return;
     }
-    
+
     let paginationHTML = '';
-    
+
     // Botão Anterior
     if (currentPage > 1) {
         paginationHTML += `
@@ -255,11 +255,11 @@ function updatePagination(currentPage, totalPages, totalItems) {
             </li>
         `;
     }
-    
+
     // Páginas
     const startPage = Math.max(1, currentPage - 2);
     const endPage = Math.min(totalPages, currentPage + 2);
-    
+
     if (startPage > 1) {
         paginationHTML += `
             <li class="page-item">
@@ -270,7 +270,7 @@ function updatePagination(currentPage, totalPages, totalItems) {
             paginationHTML += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
         }
     }
-    
+
     for (let i = startPage; i <= endPage; i++) {
         paginationHTML += `
             <li class="page-item ${i === currentPage ? 'active' : ''}">
@@ -278,7 +278,7 @@ function updatePagination(currentPage, totalPages, totalItems) {
             </li>
         `;
     }
-    
+
     if (endPage < totalPages) {
         if (endPage < totalPages - 1) {
             paginationHTML += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
@@ -289,7 +289,7 @@ function updatePagination(currentPage, totalPages, totalItems) {
             </li>
         `;
     }
-    
+
     // Botão Próximo
     if (currentPage < totalPages) {
         paginationHTML += `
@@ -300,9 +300,9 @@ function updatePagination(currentPage, totalPages, totalItems) {
             </li>
         `;
     }
-    
+
     pagination.innerHTML = paginationHTML;
-    
+
     // Mostrar informações
     const info = document.createElement('small');
     info.className = 'text-muted d-block text-center mt-2';
@@ -316,85 +316,85 @@ function showRowDetails(id) {
 }
 
 // Event Listeners
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Carregar dropdown de sensores
     loadSensorsDropdown();
-    
+
     // Carregar dados iniciais
     if (document.getElementById('data-table')) {
         loadData();
     }
-    
+
     // Filtros
     const filterForm = document.getElementById('filter-form');
     if (filterForm) {
-        filterForm.addEventListener('submit', function(e) {
+        filterForm.addEventListener('submit', function (e) {
             e.preventDefault();
-            
+
             const filters = {};
             const sensor = document.getElementById('sensor-filter').value;
             const startDate = document.getElementById('start-date').value;
             const endDate = document.getElementById('end-date').value;
-            
+
             if (sensor) filters.sensor = sensor;
             if (startDate) filters.start_date = startDate;
             if (endDate) filters.end_date = endDate;
-            
+
             loadData(1, filters);
         });
     }
-    
+
     // Limpar filtros
     const clearFiltersBtn = document.getElementById('clear-filters');
     if (clearFiltersBtn) {
-        clearFiltersBtn.addEventListener('click', function() {
+        clearFiltersBtn.addEventListener('click', function () {
             document.getElementById('sensor-filter').value = '';
             document.getElementById('start-date').value = '';
             document.getElementById('end-date').value = '';
             loadData(1, {});
         });
     }
-    
+
     // Atualizar dados
     const refreshBtn = document.getElementById('refresh-data');
     if (refreshBtn) {
-        refreshBtn.addEventListener('click', function() {
+        refreshBtn.addEventListener('click', function () {
             loadData(currentPage, currentFilters);
             showToast('Dados atualizados!', 'success');
         });
     }
-    
-    // Exportar dados (placeholder)
-    const exportBtn = document.getElementById('export-data');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', function() {
-            showToast('Funcionalidade de exportação em desenvolvimento', 'info');
-        });
-    }
+
+    // Exportar dados (placeholder) - REMOVIDO para deixar o dashboard.js controlar
+    // const exportBtn = document.getElementById('export-data');
+    // if (exportBtn) {
+    //     exportBtn.addEventListener('click', function() {
+    //         showToast('Funcionalidade de exportação em desenvolvimento', 'info');
+    //     });
+    // }
 });
 
-// Atualização automática a cada 30 segundos
-setInterval(() => {
-    if (document.getElementById('data-table')) {
-        loadData(currentPage, currentFilters);
-    }
-}, 30000);
+// Atualização automática a cada 30 segundos - REMOVIDO a pedido do usuário
+// setInterval(() => {
+//     if (document.getElementById('data-table')) {
+//         loadData(currentPage, currentFilters);
+//     }
+// }, 30000);
 
 // Calcular estatísticas básicas de um array (global)
 function calculateStats(data) {
     if (!data || data.length === 0) {
         return { min: 0, max: 0, avg: 0, count: 0 };
     }
-    
+
     const values = data.filter(v => v !== null && v !== undefined);
     if (values.length === 0) {
         return { min: 0, max: 0, avg: 0, count: 0 };
     }
-    
+
     const min = Math.min(...values);
     const max = Math.max(...values);
     const avg = values.reduce((a, b) => a + b, 0) / values.length;
-    
+
     return {
         min: parseFloat(min.toFixed(2)),
         max: parseFloat(max.toFixed(2)),

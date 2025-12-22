@@ -179,15 +179,24 @@ document.addEventListener('DOMContentLoaded', function () {
         reportForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('btn-send-report');
+
+            const startDate = document.getElementById('reportStartDate').value;
+            const endDate = document.getElementById('reportEndDate').value;
+            const email = document.getElementById('reportEmail').value;
+            const operationName = document.getElementById('operationName').value;
+            const comments = document.getElementById('reportComments').value;
+
+            if (!startDate || !endDate) {
+                showToast('Por favor, selecione as datas de início e fim.', 'warning');
+                return;
+            }
+
+            // const btn obtained above
             const originalText = btn.innerHTML;
 
             // Loading state
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
-
-            const startDate = document.getElementById('report_start_date').value;
-            const endDate = document.getElementById('report_end_date').value;
-            const email = document.getElementById('report_email').value;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Gerando...';
 
             try {
                 const resp = await fetch('/api/report/send', {
@@ -196,7 +205,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     body: JSON.stringify({
                         start_date: startDate,
                         end_date: endDate,
-                        target_email: email
+                        target_email: email,
+                        operation_name: operationName,
+                        comments: comments
                     })
                 });
 

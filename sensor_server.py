@@ -1284,18 +1284,36 @@ def api_send_email():
 
 @app.route('/api/report/send', methods=['POST'])
 def api_report_send():
-    """Gera relatório CSV por período e envia por email."""
+    """Gera relatório PDF com gráficos e dados agregados por hora e envia por email."""
     server = None
     try:
         data = request.get_json()
         start_date = data.get('start_date')
         end_date = data.get('end_date')
         target_email = data.get('target_email')  # Opcional, se não vier usa o do config
-
+        operation_name = data.get('operation_name')
+        comments = data.get('comments')
         if not start_date or not end_date:
             return jsonify({'success': False, 'error': 'Datas de início e fim são obrigatórias'}), 400
 
-        # 1. Buscar configurações SMTP
+        # --- Imports Locais para economizar memória se não usado ---
+        import matplotlib
+        matplotlib.use('Agg') # Backend não interativo
+        import matplotlib.pyplot as plt
+        import io
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        import sqlite3
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        from email.mime.application import MIMEApplication
+        from collections import defaultdict
+        from datetime import datetime
+
+        # 1. Configurações SMTP
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute('SELECT smtp_host, smtp_port, smtp_user, smtp_password, sender_email, sender_name FROM smtp_config ORDER BY id DESC LIMIT 1')
@@ -1303,19 +1321,18 @@ def api_report_send():
         
         if not smtp_row:
              conn.close()
-             return jsonify({'success': False, 'error': 'Configurações SMTP não encontradas. Configure primeiro.'}), 400
+             return jsonify({'success': False, 'error': 'SMTP não configurado.'}), 400
              
         smtp_host, smtp_port, smtp_user, smtp_password, sender_email, sender_name = smtp_row
         recipient_email = target_email if target_email else sender_email
 
-        # 2. Gerar CSV
-        # Ajustar datas para cobrir o dia inteiro se vier apenas YYYY-MM-DD
+        # 2. Buscar Dados
         if len(start_date) == 10: start_date += " 00:00:00"
         if len(end_date) == 10: end_date += " 23:59:59"
 
         cursor.execute(
             """
-            SELECT timestamp, sensor_name, temperature, pressure, velocity, sensor_type, mode
+            SELECT timestamp, sensor_name, temperature, pressure
             FROM sensor_readings
             WHERE timestamp >= ? AND timestamp <= ?
             ORDER BY timestamp ASC
@@ -1326,57 +1343,131 @@ def api_report_send():
         conn.close()
 
         if not rows:
-             return jsonify({'success': False, 'error': 'Nenhum dado encontrado no período selecionado.'}), 404
+             return jsonify({'success': False, 'error': 'Sem dados no período.'}), 404
 
-        # Construir CSV na memória
-        import io
-        import csv
+        # 3. Processar Dados (Agregação por Hora)
+        # dict[hour_str] -> dict[sensor_name] -> list[values]
+        data_by_hour = defaultdict(lambda: defaultdict(list))
         
-        csv_buffer = io.StringIO()
-        csv_writer = csv.writer(csv_buffer)
-        csv_writer.writerow(["Timestamp", "Sensor", "Temperatura", "Pressao", "Velocidade", "Tipo", "Modo"])
-        
-        for r in rows:
-            csv_writer.writerow([
-                r[0] or '', r[1] or '',
-                f"{r[2]:.2f}" if r[2] is not None else '',
-                f"{r[3]:.2f}" if r[3] is not None else '',
-                f"{r[4]:.2f}" if r[4] is not None else '',
-                r[5] or '', r[6] or ''
-            ])
+        # Para o gráfico: dict[sensor_name] -> {'timestamps': [], 'values': []}
+        chart_data = defaultdict(lambda: {'timestamps': [], 'values': []})
+
+        for row in rows:
+            ts_str, sensor, temp, press = row
+            # Converter timestamp string para objeto datetime
+            try:
+                dt = datetime.strptime(ts_str.split('.')[0], '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                continue # Pula formatos inválidos
             
-        csv_content = csv_buffer.getvalue()
-        csv_buffer.close()
+            val = temp if temp is not None else press
+            if val is None: continue
 
-        # 3. Enviar Email
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-        from email.mime.application import MIMEApplication
+            # Agregação Horária
+            hour_key = dt.strftime('%d/%m/%Y %H:00')
+            data_by_hour[hour_key][sensor].append(val)
 
+            # Dados Gráfico (Raw)
+            chart_data[sensor]['timestamps'].append(dt)
+            chart_data[sensor]['values'].append(val)
+
+        # Calcular médias horárias
+        # aggregated_rows: list de [Hora, SensorA_Avg, SensorB_Avg, ...]
+        active_sensors = sorted(list(chart_data.keys()))
+        aggregated_rows = []
+        
+        sorted_hours = sorted(data_by_hour.keys())
+        for h in sorted_hours:
+            row_vals = [h]
+            for s in active_sensors:
+                vals = data_by_hour[h].get(s, [])
+                if vals:
+                    avg = sum(vals) / len(vals)
+                    row_vals.append(f"{avg:.2f}")
+                else:
+                    row_vals.append("-")
+            aggregated_rows.append(row_vals)
+
+        # 4. Gerar Gráfico
+        plt.figure(figsize=(10, 5))
+        for sensor in active_sensors:
+            times = chart_data[sensor]['timestamps']
+            vals = chart_data[sensor]['values']
+            plt.plot(times, vals, label=sensor)
+        
+        plt.title(f"Tendências: {start_date} a {end_date}")
+        plt.xlabel("Tempo")
+        plt.ylabel("Valor")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=100)
+        img_buffer.seek(0)
+        plt.close()
+
+        # 5. Gerar PDF
+        pdf_buffer = io.BytesIO()
+        doc = SimpleDocTemplate(pdf_buffer, pagesize=A4)
+        elements = []
+        styles = getSampleStyleSheet()
+
+        # Título
+        elements.append(Paragraph("Relatório do Sistema TempPi", styles['Title']))
+        elements.append(Paragraph(f"Período: {start_date} até {end_date}", styles['Normal']))
+
+        if operation_name:
+            elements.append(Paragraph(f"<b>Operação:</b> {operation_name}", styles['Normal']))
+
+        elements.append(Spacer(1, 20))
+
+        # Imagem do Gráfico
+        rl_img = RLImage(img_buffer, width=450, height=250)
+        elements.append(rl_img)
+        elements.append(Spacer(1, 20))
+
+        # Tabela de Dados Agregados
+        # Header
+        table_data = [['Data/Hora'] + active_sensors]
+        # Rows
+        table_data.extend(aggregated_rows)
+
+        t = Table(table_data)
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(t)
+        elements.append(Paragraph(f"Total de Registros Processados: {len(rows)}", styles['Normal']))
+
+        if comments:
+            elements.append(Spacer(1, 20))
+            elements.append(Paragraph("<b>Comentários:</b>", styles['Heading3']))
+            elements.append(Paragraph(comments.replace('\n', '<br/>'), styles['Normal']))
+
+        doc.build(elements)
+        pdf_bytes = pdf_buffer.getvalue()
+
+        # 6. Enviar Email
         msg = MIMEMultipart()
         msg['From'] = f"{sender_name} <{sender_email}>"
         msg['To'] = recipient_email
-        msg['Subject'] = f"Relatorio TempPi: {start_date} a {end_date}"
+        msg['Subject'] = f"Relatório TempPi (PDF): {start_date}"
 
-        body = f"""
-        Olá,
-        
-        Segue em anexo o relatório de dados do sistema TempPi.
-        
-        Período: {start_date} até {end_date}
-        Total de registros: {len(rows)}
-        
-        Gerado automaticamente pelo sistema.
-        """
-        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        msg.attach(MIMEText("Segue em anexo o relatório PDF com gráfico e dados agregados.", 'plain', 'utf-8'))
 
-        # Anexo CSV
-        part = MIMEApplication(csv_content.encode('utf-8'), Name="relatorio.csv")
-        part['Content-Disposition'] = f'attachment; filename="relatorio_{start_date[:10]}_{end_date[:10]}.csv"'
+        part = MIMEApplication(pdf_bytes, Name="relatorio.pdf")
+        part['Content-Disposition'] = f'attachment; filename="relatorio_{start_date[:10]}.pdf"'
         msg.attach(part)
 
-        # Conectar e enviar
         if smtp_port == 465:
             server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=20)
         else:
@@ -1386,17 +1477,16 @@ def api_report_send():
         server.login(smtp_user, smtp_password)
         server.sendmail(sender_email, recipient_email, msg.as_string())
         
-        return jsonify({'success': True, 'message': f'Relatório enviado para {recipient_email}'})
+        return jsonify({'success': True, 'message': f'PDF enviado para {recipient_email}'})
 
     except Exception as e:
-        print(f"Erro no envio de relatório: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if server:
-            try:
-                server.quit()
-            except:
-                pass
+            try: server.quit()
+            except: pass
 
 # ===== Admin: Reset de dados de sensores =====
 @app.route('/api/admin/reset-sensor-data', methods=['POST'])

@@ -25,11 +25,15 @@
                 <div class="mb-3">
                     <h6>Modo de Operação</h6>
                     <div class="btn-group w-100" role="group">
-                        <input type="radio" class="btn-check" name="system_mode" id="mode-auto" value="0" autocomplete="off" checked>
-                        <label class="btn btn-outline-primary" for="mode-auto"><i class="fas fa-robot"></i> Automático</label>
-                        
-                        <input type="radio" class="btn-check" name="system_mode" id="mode-manual" value="1" autocomplete="off">
-                        <label class="btn btn-outline-secondary" for="mode-manual"><i class="fas fa-hand-paper"></i> Manual</label>
+                        <input type="radio" class="btn-check" name="system_mode" id="mode-auto" value="0"
+                            autocomplete="off" checked>
+                        <label class="btn btn-outline-primary" for="mode-auto"><i class="fas fa-robot"></i>
+                            Automático</label>
+
+                        <input type="radio" class="btn-check" name="system_mode" id="mode-manual" value="1"
+                            autocomplete="off">
+                        <label class="btn btn-outline-secondary" for="mode-manual"><i class="fas fa-hand-paper"></i>
+                            Manual</label>
                     </div>
                 </div>
 
@@ -43,7 +47,7 @@
                         </button>
                     </div>
                 </div>
-                
+
                 <hr>
 
                 <!-- Controles Manuais -->
@@ -51,15 +55,15 @@
                     <h6 class="mb-3">Acionamentos Manuais</h6>
                     <div class="d-grid gap-2">
                         <button class="btn btn-outline-success" id="manual-fan-btn">
-                            <i class="fas fa-fan"></i> Ventilador 
+                            <i class="fas fa-fan"></i> Ventilador
                             <span class="badge bg-secondary ms-2">Desligado</span>
                         </button>
                         <button class="btn btn-outline-success" id="manual-screw-btn">
-                            <i class="fas fa-cogs"></i> Rosca 
+                            <i class="fas fa-cogs"></i> Rosca
                             <span class="badge bg-secondary ms-2">Desligado</span>
                         </button>
                         <button class="btn btn-outline-success" id="manual-cooling-btn">
-                            <i class="fas fa-wind"></i> Ventilação Resfriador 
+                            <i class="fas fa-wind"></i> Ventilação Resfriador
                             <span class="badge bg-secondary ms-2">Desligado</span>
                         </button>
                         <div class="btn-group w-100">
@@ -92,9 +96,9 @@
                         <input type="number" class="form-control" id="temp_forno_max" placeholder="Max">
                     </div>
                 </form>
-                
+
                 <hr>
-                
+
                 <!-- Visualização em Tempo Real -->
                 <h6 class="mb-3">Visualização em Tempo Real</h6>
                 <div class="row g-2">
@@ -153,7 +157,8 @@
                                     <small class="text-muted">Pressão Gases</small>
                                     <div class="h6 mb-0" id="display_pressao_gases">- PSI</div>
                                 </div>
-                                <button class="btn btn-sm btn-outline-primary ms-2" id="btn-calibrar-pressao" title="Calibrar pressão">
+                                <button class="btn btn-sm btn-outline-primary ms-2" id="btn-calibrar-pressao"
+                                    title="Calibrar pressão">
                                     <i class="fas fa-sliders-h"></i>
                                 </button>
                             </div>
@@ -202,14 +207,21 @@
                         <input type="date" class="form-control" id="report_end_date" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label small">Email (Opcional)</label>
-                        <input type="email" class="form-control" id="report_email" placeholder="Se vazio, usa email padrão">
+                        <label for="reportEmail" class="form-label">Enviar para Email (Opcional)</label>
+                        <input type="email" class="form-control" id="reportEmail" placeholder="nome@exemplo.com">
                     </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary btn-sm" id="btn-send-report">
-                            <i class="fas fa-envelope"></i> Enviar Relatório
-                        </button>
+                    <div class="mb-3">
+                        <label for="operationName" class="form-label">Nome da Operação (Opcional)</label>
+                        <input type="text" class="form-control" id="operationName" placeholder="Ex: Produção Lote A">
                     </div>
+                    <div class="mb-3">
+                        <label for="reportComments" class="form-label">Comentários (Opcional)</label>
+                        <textarea class="form-control" id="reportComments" rows="3"
+                            placeholder="Observações sobre o período..."></textarea>
+                    </div>
+                    <button id="btnGenerateReport" class="btn btn-primary w-100">
+                        <i class="bi bi-file-earmark-pdf me-2"></i>Gerar e Enviar Relatório
+                    </button>
                 </form>
             </div>
         </div>
@@ -287,12 +299,12 @@
                             <i class="fas fa-tachometer-alt"></i> Velocidade Tambor
                         </label>
                         <div class="input-group">
-                            <input type="range" class="form-range" id="velocidade_tambor" 
-                                   min="100" max="2000" step="100" value="1000">
+                            <input type="range" class="form-range" id="velocidade_tambor" min="100" max="2000"
+                                step="100" value="1000">
                             <span class="input-group-text" id="velocidade_tambor_display">1000 Hz</span>
                         </div>
                         <small class="text-muted">
-                            <span id="velocidade_tambor_rpm">300 RPM</span> 
+                            <span id="velocidade_tambor_rpm">300 RPM</span>
                             | 100-2000 Hz
                         </small>
                     </div>
@@ -318,86 +330,91 @@
 
 <style>
     /* #manual-controls.disabled - Removido para manter botões sempre habilitados */
-    
+
     /* Full height para página de controle */
-    html, body {
+    html,
+    body {
         height: 100%;
         margin: 0;
         padding: 0;
     }
-    
+
     main {
-        min-height: calc(100vh - 60px); /* 60px = altura do navbar */
+        min-height: calc(100vh - 60px);
+        /* 60px = altura do navbar */
         display: flex;
         flex-direction: column;
     }
-    
+
     .container {
         flex: 1;
     }
-    
+
     /* Textos maiores para melhor legibilidade */
-    h1 { 
-        font-size: 2.5rem !important; 
+    h1 {
+        font-size: 2.5rem !important;
         font-weight: 700 !important;
     }
-    
-    h5, h6 { 
-        font-size: 1.5rem !important; 
+
+    h5,
+    h6 {
+        font-size: 1.5rem !important;
         font-weight: 600 !important;
     }
-    
-    .card-title { 
-        font-size: 1.3rem !important; 
+
+    .card-title {
+        font-size: 1.3rem !important;
         font-weight: 600 !important;
     }
-    
-    .display_temp { 
-        font-size: 2rem !important; 
+
+    .display_temp {
+        font-size: 2rem !important;
         font-weight: 700 !important;
     }
-    
-    .btn { 
-        font-size: 1.2rem !important; 
+
+    .btn {
+        font-size: 1.2rem !important;
         padding: 0.8rem 1.5rem !important;
         font-weight: 500 !important;
     }
-    
-    small { 
-        font-size: 1rem !important; 
+
+    small {
+        font-size: 1rem !important;
     }
-    
+
     /* Valores em tempo real maiores */
-    .h6 { 
-        font-size: 1.8rem !important; 
+    .h6 {
+        font-size: 1.8rem !important;
         font-weight: 700 !important;
     }
-    
-    .display-1 { 
-        font-size: 3rem !important; 
+
+    .display-1 {
+        font-size: 3rem !important;
         font-weight: 700 !important;
     }
-    
+
     /* Aumentar espaçamento entre cards */
     .card {
         margin-bottom: 1.5rem;
     }
-    
+
     /* Aumentar padding interno dos cards */
     .card-body {
         padding: 1.5rem;
     }
-    
+
     /* Melhorar legibilidade dos badges */
     .badge {
         font-size: 0.9rem !important;
         padding: 0.5rem 0.8rem !important;
     }
-    
+
     /* Aumentar tamanho dos ícones */
-    .fas, .far {
+    .fas,
+    .far {
         font-size: 1.2em !important;
     }
+
     .list-group-item {
         padding-left: 0;
         padding-right: 0;
@@ -410,73 +427,98 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="pressureCalibLabel"><i class="fas fa-sliders-h"></i> Calibração de Pressão</h5>
+                <h5 class="modal-title" id="pressureCalibLabel"><i class="fas fa-sliders-h"></i> Calibração de Pressão
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <form id="pressure-calib-form">
                     <div class="mb-3">
                         <label class="form-label">Leitura do Sistema (PSI)</label>
-                        <input type="number" step="0.01" class="form-control" id="calib_system_reading" placeholder="Ex.: 2,42" inputmode="decimal" pattern="[0-9]+([\.,][0-9]+)?" autocomplete="off">
+                        <input type="number" step="0.01" class="form-control" id="calib_system_reading"
+                            placeholder="Ex.: 2,42" inputmode="decimal" pattern="[0-9]+([\.,][0-9]+)?"
+                            autocomplete="off">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Leitura Oficial (PSI)</label>
-                        <input type="number" step="0.01" class="form-control" id="calib_official_reading" placeholder="Ex.: 10,00" inputmode="decimal" pattern="[0-9]+([\.,][0-9]+)?" autocomplete="off">
+                        <input type="number" step="0.01" class="form-control" id="calib_official_reading"
+                            placeholder="Ex.: 10,00" inputmode="decimal" pattern="[0-9]+([\.,][0-9]+)?"
+                            autocomplete="off">
                     </div>
                     <div class="row g-2">
                         <div class="col-6">
                             <label class="form-label">Ganho</label>
-                            <input type="number" step="0.00001" class="form-control" id="calib_gain" placeholder="Ex.: 4,13223" inputmode="decimal" pattern="[0-9]+([\.,][0-9]+)?" autocomplete="off">
+                            <input type="number" step="0.00001" class="form-control" id="calib_gain"
+                                placeholder="Ex.: 4,13223" inputmode="decimal" pattern="[0-9]+([\.,][0-9]+)?"
+                                autocomplete="off">
                         </div>
                         <div class="col-6">
                             <label class="form-label">Offset</label>
-                            <input type="number" step="0.01" class="form-control" id="calib_offset" placeholder="Ex.: 0,00" inputmode="decimal" pattern="[0-9]+([\.,][0-9]+)?" autocomplete="off">
+                            <input type="number" step="0.01" class="form-control" id="calib_offset"
+                                placeholder="Ex.: 0,00" inputmode="decimal" pattern="[0-9]+([\.,][0-9]+)?"
+                                autocomplete="off">
                         </div>
                     </div>
-                    <small class="text-muted">Dica: Para ajuste simples, preencha "Sistema" e "Oficial" e clique em "Sugerir".</small>
+                    <small class="text-muted">Dica: Para ajuste simples, preencha "Sistema" e "Oficial" e clique em
+                        "Sugerir".</small>
 
                     <hr>
                     <div class="accordion" id="pressCalcAccordion">
                         <div class="accordion-item">
                             <h2 class="accordion-header" id="headingCalc">
-                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCalc" aria-expanded="false" aria-controls="collapseCalc">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                    data-bs-target="#collapseCalc" aria-expanded="false" aria-controls="collapseCalc">
                                     Calculadora de Calibração (2 pontos)
                                 </button>
                             </h2>
-                            <div id="collapseCalc" class="accordion-collapse collapse" aria-labelledby="headingCalc" data-bs-parent="#pressCalcAccordion">
+                            <div id="collapseCalc" class="accordion-collapse collapse" aria-labelledby="headingCalc"
+                                data-bs-parent="#pressCalcAccordion">
                                 <div class="accordion-body">
                                     <div class="row g-2 mb-2">
                                         <div class="col-6">
                                             <label class="form-label">Ponto A - Sistema (PSI)</label>
-                                            <input type="number" step="0.01" class="form-control" id="calib_sys_a" placeholder="Ex.: 2,42" inputmode="decimal" pattern="[0-9]+([\.,][0-9]+)?" autocomplete="off">
+                                            <input type="number" step="0.01" class="form-control" id="calib_sys_a"
+                                                placeholder="Ex.: 2,42" inputmode="decimal"
+                                                pattern="[0-9]+([\.,][0-9]+)?" autocomplete="off">
                                         </div>
                                         <div class="col-6">
                                             <label class="form-label">Ponto A - Oficial (PSI)</label>
-                                            <input type="number" step="0.01" class="form-control" id="calib_off_a" placeholder="Ex.: 10,00" inputmode="decimal" pattern="[0-9]+([\.,][0-9]+)?" autocomplete="off">
+                                            <input type="number" step="0.01" class="form-control" id="calib_off_a"
+                                                placeholder="Ex.: 10,00" inputmode="decimal"
+                                                pattern="[0-9]+([\.,][0-9]+)?" autocomplete="off">
                                         </div>
                                     </div>
                                     <div class="row g-2 mb-3">
                                         <div class="col-6">
                                             <label class="form-label">Ponto B - Sistema (PSI)</label>
-                                            <input type="number" step="0.01" class="form-control" id="calib_sys_b" placeholder="Opcional" inputmode="decimal" pattern="[0-9]+([\.,][0-9]+)?" autocomplete="off">
+                                            <input type="number" step="0.01" class="form-control" id="calib_sys_b"
+                                                placeholder="Opcional" inputmode="decimal"
+                                                pattern="[0-9]+([\.,][0-9]+)?" autocomplete="off">
                                         </div>
                                         <div class="col-6">
                                             <label class="form-label">Ponto B - Oficial (PSI)</label>
-                                            <input type="number" step="0.01" class="form-control" id="calib_off_b" placeholder="Opcional" inputmode="decimal" pattern="[0-9]+([\.,][0-9]+)?" autocomplete="off">
+                                            <input type="number" step="0.01" class="form-control" id="calib_off_b"
+                                                placeholder="Opcional" inputmode="decimal"
+                                                pattern="[0-9]+([\.,][0-9]+)?" autocomplete="off">
                                         </div>
                                     </div>
                                     <div class="d-flex gap-2 mb-3">
-                                        <button type="button" class="btn btn-outline-secondary" id="btn-calib-two-point">Calcular Ganho/Offset</button>
-                                        <button type="button" class="btn btn-outline-info" id="btn-calib-preview">Pré-visualizar Correção</button>
+                                        <button type="button" class="btn btn-outline-secondary"
+                                            id="btn-calib-two-point">Calcular Ganho/Offset</button>
+                                        <button type="button" class="btn btn-outline-info"
+                                            id="btn-calib-preview">Pré-visualizar Correção</button>
                                     </div>
                                     <div class="row g-2">
                                         <div class="col-6">
                                             <label class="form-label">Leitura Atual (Sistema)</label>
-                                            <input type="number" step="0.01" class="form-control" id="calib_preview_input" placeholder="Ex.: 2,42" inputmode="decimal" pattern="[0-9]+([\.,][0-9]+)?" autocomplete="off">
+                                            <input type="number" step="0.01" class="form-control"
+                                                id="calib_preview_input" placeholder="Ex.: 2,42" inputmode="decimal"
+                                                pattern="[0-9]+([\.,][0-9]+)?" autocomplete="off">
                                         </div>
                                         <div class="col-6">
                                             <label class="form-label">Corrigido (PSI)</label>
-                                            <input type="text" class="form-control" id="calib_preview_output" placeholder="-" readonly>
+                                            <input type="text" class="form-control" id="calib_preview_output"
+                                                placeholder="-" readonly>
                                         </div>
                                     </div>
                                 </div>
@@ -491,7 +533,7 @@
             </div>
         </div>
     </div>
-    
+
 </div>
 {% endblock %}
 

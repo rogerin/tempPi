@@ -25,11 +25,13 @@ def configure_smtp():
         cursor.execute('SELECT COUNT(*) FROM smtp_config')
         count = cursor.fetchone()[0]
         
-        smtp_host = "smtp.hostinger.com"
+        # Credenciais já salvas no banco. 
+        # Para alterar, edite estas variáveis ou use variáveis de ambiente.
+        smtp_host = "smtp.hostinger.com" 
         smtp_port = 587
-        smtp_user = "keyla@keycore.com.br"
-        smtp_password = "R0ger!n20100"
-        sender_email = "keyla@keycore.com.br"
+        smtp_user = "SEU_EMAIL"
+        smtp_password = "SUA_SENHA"
+        sender_email = "SEU_EMAIL"
         sender_name = "TempPi System"
         
         if count == 0:

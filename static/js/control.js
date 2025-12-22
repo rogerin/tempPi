@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (reportForm) {
         reportForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const btn = document.getElementById('btn-send-report');
+            const btn = document.getElementById('btnGenerateReport');
 
             const startDate = document.getElementById('reportStartDate').value;
             const endDate = document.getElementById('reportEndDate').value;

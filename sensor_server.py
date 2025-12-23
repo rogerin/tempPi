@@ -454,15 +454,7 @@ def api_all_sensors_data():
             
         rows = cursor.fetchall()
         conn.close()
-                query = group_query
-            else:
-                query = base_query + ' GROUP BY timestamp ORDER BY timestamp'
-        else:
-            query = base_query + ' GROUP BY timestamp ORDER BY timestamp'
-        
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        conn.close()
+
         
         # Converter para lista de dicionários
         data = []

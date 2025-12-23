@@ -420,64 +420,40 @@ def api_all_sensors_data():
         '''.format(where_clause)
         
         # Aplicar agrupamento se necessário
+        # Aplicar agrupamento se necessário
         if group_by != 'none':
             group_interval = get_group_interval(group_by)
             if group_interval:
-                # Agrupar por intervalo de tempo
-                if group_interval >= 86400:  # 1 dia ou mais
-                    group_query = '''
-                        SELECT 
-                            date(timestamp) as timestamp,
-                            AVG(MAX(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END)) as temp_forno,
-                            AVG(MAX(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END)) as torre_nivel_1,
-                            AVG(MAX(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END)) as torre_nivel_2,
-                            AVG(MAX(CASE WHEN sensor_name = 'Torre Nível 3' THEN temperature END)) as torre_nivel_3,
-                            AVG(MAX(CASE WHEN sensor_name = 'Temp Tanque' THEN temperature END)) as temp_tanque,
-                            AVG(MAX(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END)) as temp_gases,
-                            AVG(MAX(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END)) as pressao_gases,
-                            AVG(MAX(CASE WHEN sensor_name = 'Velocidade' THEN velocity END)) as velocity
-                        FROM sensor_readings 
-                        {}
-                        GROUP BY date(timestamp)
-                        ORDER BY timestamp
-                    '''.format(where_clause)
-                elif group_interval >= 3600:  # 1 hora ou mais
-                    group_query = '''
-                        SELECT 
-                            datetime(strftime('%Y-%m-%d %H:00:00', timestamp)) as timestamp,
-                            AVG(MAX(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END)) as temp_forno,
-                            AVG(MAX(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END)) as torre_nivel_1,
-                            AVG(MAX(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END)) as torre_nivel_2,
-                            AVG(MAX(CASE WHEN sensor_name = 'Torre Nível 3' THEN temperature END)) as torre_nivel_3,
-                            AVG(MAX(CASE WHEN sensor_name = 'Temp Tanque' THEN temperature END)) as temp_tanque,
-                            AVG(MAX(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END)) as temp_gases,
-                            AVG(MAX(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END)) as pressao_gases,
-                            AVG(MAX(CASE WHEN sensor_name = 'Velocidade' THEN velocity END)) as velocity
-                        FROM sensor_readings 
-                        {}
-                        GROUP BY datetime(strftime('%Y-%m-%d %H:00:00', timestamp))
-                        ORDER BY timestamp
-                    '''.format(where_clause)
-                else:  # Minutos
-                    minutes = group_interval // 60
-                    group_query = '''
-                        SELECT 
-                            datetime(strftime('%Y-%m-%d %H:', timestamp) || 
-                                   printf('%02d:00', (strftime('%M', timestamp) / {}) * {})) as timestamp,
-                            AVG(MAX(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END)) as temp_forno,
-                            AVG(MAX(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END)) as torre_nivel_1,
-                            AVG(MAX(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END)) as torre_nivel_2,
-                            AVG(MAX(CASE WHEN sensor_name = 'Torre Nível 3' THEN temperature END)) as torre_nivel_3,
-                            AVG(MAX(CASE WHEN sensor_name = 'Temp Tanque' THEN temperature END)) as temp_tanque,
-                            AVG(MAX(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END)) as temp_gases,
-                            AVG(MAX(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END)) as pressao_gases,
-                            AVG(MAX(CASE WHEN sensor_name = 'Velocidade' THEN velocity END)) as velocity
-                        FROM sensor_readings 
-                        {}
-                        GROUP BY datetime(strftime('%Y-%m-%d %H:', timestamp) || 
-                                        printf('%02d:00', (strftime('%M', timestamp) / {}) * {}))
-                        ORDER BY timestamp
-                    '''.format(minutes, minutes, where_clause, minutes, minutes)
+                # Agrupar por intervalo de tempo usando unix epoch
+                # datetime((strftime('%s', timestamp) / interval) * interval, 'unixepoch', 'localtime')
+                
+                group_query = '''
+                    SELECT 
+                        datetime((strftime('%s', timestamp) / {}) * {}, 'unixepoch', 'localtime') as timestamp,
+                        AVG(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END) as temp_forno,
+                        AVG(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END) as torre_nivel_1,
+                        AVG(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END) as torre_nivel_2,
+                        AVG(CASE WHEN sensor_name = 'Torre Nível 3' THEN temperature END) as torre_nivel_3,
+                        AVG(CASE WHEN sensor_name = 'Temp Tanque' THEN temperature END) as temp_tanque,
+                        AVG(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END) as temp_gases,
+                        AVG(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END) as pressao_gases,
+                        AVG(CASE WHEN sensor_name = 'Velocidade' THEN velocity END) as velocity
+                    FROM sensor_readings 
+                    {}
+                    GROUP BY 1
+                    ORDER BY 1
+                '''.format(group_interval, group_interval, where_clause)
+                
+                cursor.execute(group_query, params)
+            else:
+                 # Fallback
+                 cursor.execute(base_query + ' GROUP BY timestamp ORDER BY timestamp', params)
+        else:
+            query = base_query + ' GROUP BY timestamp ORDER BY timestamp'
+            cursor.execute(query, params)
+            
+        rows = cursor.fetchall()
+        conn.close()
                 query = group_query
             else:
                 query = base_query + ' GROUP BY timestamp ORDER BY timestamp'
@@ -632,6 +608,11 @@ def api_all_sensors_recent():
 def get_group_interval(group_by):
     """Converte string de agrupamento para segundos."""
     intervals = {
+        '2s': 2,
+        '4s': 4,
+        '6s': 6,
+        '10s': 10,
+        '30s': 30,
         '1min': 60,
         '5min': 300,
         '15min': 900,
@@ -918,7 +899,31 @@ def _generate_pdf_bytes(data):
         {}
     '''.format(where_clause)
     
-    query = base_query + ' GROUP BY timestamp ORDER BY timestamp'
+    # Aplicar agrupamento se necessário
+    if group_by != 'none':
+        group_interval = get_group_interval(group_by)
+        if group_interval:
+            query = '''
+                SELECT 
+                    datetime((strftime('%s', timestamp) / {}) * {}, 'unixepoch', 'localtime') as timestamp,
+                    AVG(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END) as temp_forno,
+                    AVG(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END) as torre_nivel_1,
+                    AVG(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END) as torre_nivel_2,
+                    AVG(CASE WHEN sensor_name = 'Torre Nível 3' THEN temperature END) as torre_nivel_3,
+                    AVG(CASE WHEN sensor_name = 'Temp Tanque' THEN temperature END) as temp_tanque,
+                    AVG(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END) as temp_gases,
+                    AVG(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END) as pressao_gases,
+                    AVG(CASE WHEN sensor_name = 'Velocidade' THEN velocity END) as velocity
+                FROM sensor_readings 
+                {}
+                GROUP BY 1
+                ORDER BY 1
+            '''.format(group_interval, group_interval, where_clause)
+        else:
+            query = base_query + ' GROUP BY timestamp ORDER BY timestamp'
+    else:
+        query = base_query + ' GROUP BY timestamp ORDER BY timestamp'
+
     cursor.execute(query, params)
     rows = cursor.fetchall()
     conn.close()

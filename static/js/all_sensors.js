@@ -247,8 +247,10 @@ if (window.__ALL_SENSORS_INIT__) {
             velocity: d.velocity
         }));
 
-        // Limitar aos últimos 100 registros para reduzir carga no navegador
-        const limitedData = chartData.slice(-100);
+        // Limitar aos últimos 10000 registros para evitar travamento, mas mostrar histórico suficiente
+        // Se o usuário pedir agrupamento de 2s em 2 dias, ainda será cortado, mas 100 era muito pouco.
+        // O ideal seria downsampling no front, mas vamos aumentar o limite primeiro.
+        const limitedData = chartData.slice(-10000);
 
         if (allSensorsChart) allSensorsChart.destroy();
 

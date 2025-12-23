@@ -857,240 +857,274 @@ def api_test_smtp():
             except:
                 pass
 
+
+def _generate_pdf_bytes(data):
+    """Função auxiliar para gerar bytes do PDF com base nos dados do filtro."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    from io import BytesIO
+    import base64
+    import sqlite3
+    
+    # Normalizar timestamps
+    def _normalize_ts(ts):
+        if not ts: return None
+        ts = ts.replace('T', ' ')
+        if len(ts) == 16: ts = ts + ':00'
+        return ts
+    
+    # Parâmetros
+    time_range = data.get('timeRange', '24')
+    start_time = _normalize_ts(data.get('startTime'))
+    end_time = _normalize_ts(data.get('endTime'))
+    group_by = data.get('groupBy', 'none')
+    selected_sensors = data.get('selectedSensors', [])
+    pressure_unit = data.get('pressureUnit', 'psi')
+    
+    # Buscar dados
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    if start_time and end_time:
+        where_clause = "WHERE timestamp >= ? AND timestamp <= ?"
+        params = [start_time, end_time]
+    else:
+        now_br = get_brazil_time()
+        start_br = (now_br - timedelta(hours=int(time_range))).strftime('%Y-%m-%d %H:%M:%S')
+        where_clause = "WHERE timestamp >= ?"
+        params = [start_br]
+    
+    base_query = '''
+        SELECT 
+            timestamp,
+            MAX(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END) as temp_forno,
+            MAX(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END) as torre_nivel_1,
+            MAX(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END) as torre_nivel_2,
+            MAX(CASE WHEN sensor_name = 'Torre Nível 3' THEN temperature END) as torre_nivel_3,
+            MAX(CASE WHEN sensor_name = 'Temp Tanque' THEN temperature END) as temp_tanque,
+            MAX(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END) as temp_gases,
+            MAX(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END) as pressao_gases,
+            MAX(CASE WHEN sensor_name = 'Velocidade' THEN velocity END) as velocity
+        FROM sensor_readings 
+        {}
+    '''.format(where_clause)
+    
+    query = base_query + ' GROUP BY timestamp ORDER BY timestamp'
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    
+    chart_data = []
+    for row in rows:
+        chart_data.append({
+            'timestamp': row[0],
+            'temp_forno': row[1],
+            'torre_nivel_1': row[2],
+            'torre_nivel_2': row[3],
+            'torre_nivel_3': row[4],
+            'temp_tanque': row[5],
+            'temp_gases': row[6],
+            'pressao_gases': row[7],
+            'velocity': row[8]
+        })
+    
+    if not chart_data:
+        raise ValueError("Nenhum dado encontrado para o período especificado")
+    
+    # Gerar Gráfico
+    import matplotlib
+    matplotlib.use('Agg')
+    plt.figure(figsize=(10, 6))
+    
+    sensor_colors = {
+        'temp_forno': '#e74c3c', 'torre_nivel_1': '#3498db', 'torre_nivel_2': '#2ecc71',
+        'torre_nivel_3': '#f39c12', 'temp_tanque': '#9b59b6', 'temp_gases': '#1abc9c',
+        'pressao_gases': '#e67e22', 'velocity': '#34495e'
+    }
+    sensor_names = {
+        'temp_forno': 'Temp Forno', 'torre_nivel_1': 'Torre Nível 1',
+        'torre_nivel_2': 'Torre Nível 2', 'torre_nivel_3': 'Torre Nível 3',
+        'temp_tanque': 'Temp Tanque', 'temp_gases': 'Temp Gases',
+        'pressao_gases': 'Pressão Gases', 'velocity': 'Velocidade'
+    }
+    
+    timestamps = [datetime.strptime(d['timestamp'], '%Y-%m-%d %H:%M:%S') for d in chart_data]
+    
+    for sensor in selected_sensors:
+        if sensor in sensor_colors:
+            values = [d[sensor] for d in chart_data if d[sensor] is not None]
+            if values:
+                sensor_timestamps = [ts for i, ts in enumerate(timestamps) if chart_data[i][sensor] is not None]
+                plt.plot(sensor_timestamps, values, label=sensor_names[sensor], color=sensor_colors[sensor], linewidth=2)
+    
+    plt.title('Relatório de Sensores - TempPi')
+    plt.xlabel('Tempo')
+    plt.grid(True, alpha=0.3)
+    plt.xticks(rotation=45)
+    
+    # Formatar eixos de data
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%d/%m %H:%M'))
+    plt.gca().xaxis.set_major_locator(mdates.HourLocator(interval=max(1, len(timestamps)//10)))
+    
+    plt.tight_layout()
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    img_buffer = BytesIO()
+    plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+    img_buffer.seek(0)
+    plt.close()
+    
+    # Gerar PDF
+    pdf_buffer = BytesIO()
+    doc = SimpleDocTemplate(pdf_buffer, pagesize=A4)
+    styles = getSampleStyleSheet()
+    story = []
+    
+    title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=16, alignment=1)
+    story.append(Paragraph("Relatório de Sensores - TempPi", title_style))
+    story.append(Spacer(1, 10))
+    
+    filter_info = f"""
+    <b>Período:</b> {time_range if not start_time else f'{start_time} a {end_time}'}<br/>
+    <b>Sensores:</b> {', '.join([sensor_names.get(s, s) for s in selected_sensors])}
+    """
+    story.append(Paragraph(filter_info, styles['Normal']))
+    story.append(Spacer(1, 10))
+    
+    story.append(Image(img_buffer, width=7*inch, height=4*inch))
+    story.append(Spacer(1, 20))
+    
+    # Estatísticas
+    story.append(Paragraph("Estatísticas", styles['Heading2']))
+    stats_data = [['Sensor', 'Mín', 'Máx', 'Média']]
+    for sensor in selected_sensors:
+        if sensor in sensor_names:
+            values = [d[sensor] for d in chart_data if d[sensor] is not None]
+            if values:
+                stats_data.append([
+                    sensor_names[sensor],
+                    f"{min(values):.2f}",
+                    f"{max(values):.2f}",
+                    f"{sum(values)/len(values):.2f}"
+                ])
+    
+    if len(stats_data) > 1:
+        t = Table(stats_data)
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.grey),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('GRID', (0,0), (-1,-1), 1, colors.black)
+        ]))
+        story.append(t)
+        
+    doc.build(story)
+    return pdf_buffer.getvalue()
+
 @app.route('/api/reports/generate-pdf', methods=['POST'])
 def api_generate_pdf():
     """Gera relatório PDF com dados dos sensores."""
     try:
-        from reportlab.lib.pagesizes import letter, A4
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.units import inch
-        from reportlab.lib import colors
-        from reportlab.graphics.shapes import Drawing
-        from reportlab.graphics.charts.linecharts import HorizontalLineChart
-        import matplotlib.pyplot as plt
-        import matplotlib.dates as mdates
-        from io import BytesIO
-        import base64
-        
         data = request.get_json()
         
-        # Normalizar timestamps vindos de inputs datetime-local (YYYY-MM-DDTHH:MM)
-        def _normalize_ts(ts):
-            if not ts:
-                return None
-            ts = ts.replace('T', ' ')
-            if len(ts) == 16:  # YYYY-MM-DD HH:MM
-                ts = ts + ':00'
-            return ts
-        
-        # Parâmetros do filtro
-        time_range = data.get('timeRange', '24')
-        start_time = _normalize_ts(data.get('startTime'))
-        end_time = _normalize_ts(data.get('endTime'))
-        group_by = data.get('groupBy', 'none')
-        selected_sensors = data.get('selectedSensors', [])
-        pressure_unit = data.get('pressureUnit', 'psi')
-        
-        # Buscar dados
-        conn = sqlite3.connect(DATABASE_PATH)
-        cursor = conn.cursor()
-        
-        # Construir query (reutilizar lógica da API)
-        if start_time and end_time:
-            where_clause = "WHERE timestamp >= ? AND timestamp <= ?"
-            params = [start_time, end_time]
-        else:
-            # Período por horas com horário do Brasil
-            now_br = get_brazil_time()
-            start_br = (now_br - timedelta(hours=int(time_range))).strftime('%Y-%m-%d %H:%M:%S')
-            where_clause = "WHERE timestamp >= ?"
-            params = [start_br]
-        
-        base_query = '''
-            SELECT 
-                timestamp,
-                MAX(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END) as temp_forno,
-                MAX(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END) as torre_nivel_1,
-                MAX(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END) as torre_nivel_2,
-                MAX(CASE WHEN sensor_name = 'Torre Nível 3' THEN temperature END) as torre_nivel_3,
-                MAX(CASE WHEN sensor_name = 'Temp Tanque' THEN temperature END) as temp_tanque,
-                MAX(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END) as temp_gases,
-                MAX(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END) as pressao_gases,
-                MAX(CASE WHEN sensor_name = 'Velocidade' THEN velocity END) as velocity
-            FROM sensor_readings 
-            {}
-        '''.format(where_clause)
-        
-        query = base_query + ' GROUP BY timestamp ORDER BY timestamp'
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        conn.close()
-        
-        # Preparar dados
-        chart_data = []
-        for row in rows:
-            chart_data.append({
-                'timestamp': row[0],
-                'temp_forno': row[1],
-                'torre_nivel_1': row[2],
-                'torre_nivel_2': row[3],
-                'torre_nivel_3': row[4],
-                'temp_tanque': row[5],
-                'temp_gases': row[6],
-                'pressao_gases': row[7],
-                'velocity': row[8]
-            })
-        
-        if not chart_data:
-            return jsonify({"error": "Nenhum dado encontrado para o período especificado"}), 400
-        
-        # Configurar matplotlib para ambiente headless
-        import matplotlib
-        matplotlib.use('Agg')  # Backend sem GUI
-        
-        # Gerar gráfico com matplotlib
-        plt.figure(figsize=(12, 8))
-        
-        # Mapear sensores para cores
-        sensor_colors = {
-            'temp_forno': '#e74c3c',
-            'torre_nivel_1': '#3498db',
-            'torre_nivel_2': '#2ecc71',
-            'torre_nivel_3': '#f39c12',
-            'temp_tanque': '#9b59b6',
-            'temp_gases': '#1abc9c',
-            'pressao_gases': '#e67e22',
-            'velocity': '#34495e'
-        }
-        
-        sensor_names = {
-            'temp_forno': 'Temp Forno',
-            'torre_nivel_1': 'Torre Nível 1',
-            'torre_nivel_2': 'Torre Nível 2',
-            'torre_nivel_3': 'Torre Nível 3',
-            'temp_tanque': 'Temp Tanque',
-            'temp_gases': 'Temp Gases',
-            'pressao_gases': 'Pressão Gases',
-            'velocity': 'Velocidade'
-        }
-        
-        # Converter timestamps
-        timestamps = [datetime.strptime(d['timestamp'], '%Y-%m-%d %H:%M:%S') for d in chart_data]
-        
-        # Plotar sensores selecionados
-        for sensor in selected_sensors:
-            if sensor in sensor_colors:
-                values = [d[sensor] for d in chart_data if d[sensor] is not None]
-                if values:
-                    # Filtrar timestamps correspondentes
-                    sensor_timestamps = [ts for i, ts in enumerate(timestamps) if chart_data[i][sensor] is not None]
-                    plt.plot(sensor_timestamps, values, 
-                            label=sensor_names[sensor], 
-                            color=sensor_colors[sensor], 
-                            linewidth=2)
-        
-        plt.title('Relatório de Sensores - TempPi', fontsize=16, fontweight='bold')
-        plt.xlabel('Tempo', fontsize=12)
-        plt.ylabel('Valores', fontsize=12)
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        plt.grid(True, alpha=0.3)
-        plt.xticks(rotation=45)
-        
-        # Formatar eixos de data
-        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%d/%m %H:%M'))
-        plt.gca().xaxis.set_major_locator(mdates.HourLocator(interval=max(1, len(timestamps)//10)))
-        
-        plt.tight_layout()
-        
-        # Salvar gráfico em buffer
-        img_buffer = BytesIO()
-        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
-        img_buffer.seek(0)
-        img_data = base64.b64encode(img_buffer.getvalue()).decode()
-        plt.close()
-        
-        # Criar PDF
-        pdf_buffer = BytesIO()
-        doc = SimpleDocTemplate(pdf_buffer, pagesize=A4)
-        styles = getSampleStyleSheet()
-        story = []
-        
-        # Título
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=18,
-            spaceAfter=30,
-            alignment=1  # Centralizado
-        )
-        story.append(Paragraph("Relatório de Sensores - TempPi", title_style))
-        story.append(Spacer(1, 20))
-        
-        # Informações do filtro
-        filter_info = f"""
-        <b>Período:</b> {time_range if not start_time else f'{start_time} a {end_time}'}<br/>
-        <b>Agrupamento:</b> {group_by if group_by != 'none' else 'Sem agrupamento'}<br/>
-        <b>Sensores:</b> {', '.join([sensor_names.get(s, s) for s in selected_sensors])}<br/>
-        <b>Unidade de Pressão:</b> {pressure_unit.upper()}<br/>
-        <b>Gerado em:</b> {get_brazil_time().strftime('%d/%m/%Y %H:%M:%S')}
-        """
-        story.append(Paragraph(filter_info, styles['Normal']))
-        story.append(Spacer(1, 20))
-        
-        # Gráfico
-        img = Image(BytesIO(base64.b64decode(img_data)), width=7*inch, height=4*inch)
-        story.append(img)
-        story.append(Spacer(1, 20))
-        
-        # Estatísticas resumidas
-        story.append(Paragraph("Estatísticas Resumidas", styles['Heading2']))
-        
-        # Calcular estatísticas para cada sensor
-        stats_data = [['Sensor', 'Mínimo', 'Máximo', 'Média', 'Último Valor']]
-        for sensor in selected_sensors:
-            if sensor in sensor_names:
-                values = [d[sensor] for d in chart_data if d[sensor] is not None]
-                if values:
-                    stats_data.append([
-                        sensor_names[sensor],
-                        f"{min(values):.2f}",
-                        f"{max(values):.2f}",
-                        f"{sum(values)/len(values):.2f}",
-                        f"{values[-1]:.2f}"
-                    ])
-        
-        if len(stats_data) > 1:
-            stats_table = Table(stats_data)
-            stats_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 12),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
-            ]))
-            story.append(stats_table)
-        
-        # Construir PDF
-        doc.build(story)
-        pdf_buffer.seek(0)
-        
+        try:
+            pdf_bytes = _generate_pdf_bytes(data)
+        except ValueError as ve:
+            return jsonify({"error": str(ve)}), 400
+            
         # Retornar PDF
         return Response(
-            pdf_buffer.getvalue(),
+            pdf_bytes,
             mimetype='application/pdf',
             headers={
                 'Content-Disposition': f'attachment; filename=relatorio_sensores_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
             }
         )
         
-    except ImportError as e:
-        return jsonify({"error": f"Biblioteca necessária não encontrada: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": f"Erro ao gerar PDF: {str(e)}"}), 500
+
+@app.route('/api/reports/send-consolidated-email', methods=['POST'])
+def api_send_consolidated_email():
+    """Gera PDF consolidado e envia por email."""
+    try:
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        from email.mime.application import MIMEApplication
+        
+        data = request.get_json()
+        recipient_email = data.get('recipient_email')
+        recipient_name = data.get('recipient_name', '')
+        message = data.get('message', '')
+        
+        if not recipient_email:
+            return jsonify({'success': False, 'error': 'Email de destinatário obrigatório'}), 400
+            
+        # Gerar PDF
+        try:
+            pdf_bytes = _generate_pdf_bytes(data)
+        except ValueError as ve:
+            return jsonify({'success': False, 'error': str(ve)}), 400
+            
+        # Configurar Email
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM smtp_config ORDER BY id DESC LIMIT 1')
+        smtp_config = cursor.fetchone()
+        conn.close()
+        
+        if not smtp_config:
+            return jsonify({'success': False, 'error': 'SMTP não configurado'}), 400
+            
+        msg = MIMEMultipart()
+        msg['From'] = f"{smtp_config[6]} <{smtp_config[5]}>"
+        msg['To'] = recipient_email
+        msg['Subject'] = "Relatório Consolidado - TempPi"
+        
+        body = f"""
+        Olá {recipient_name},
+        
+        Segue em anexo o relatório consolidado dos sensores solicitados.
+        
+        {f'Mensagem: {message}' if message else ''}
+        
+        Atenciosamente,
+        Sistema TempPi
+        """
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        
+        # Anexar PDF
+        part = MIMEApplication(pdf_bytes, Name="relatorio_consolidado.pdf")
+        part['Content-Disposition'] = 'attachment; filename="relatorio_consolidado.pdf"'
+        msg.attach(part)
+        
+        # Enviar
+        smtp_host = smtp_config[1]
+        smtp_port = smtp_config[2]
+        smtp_user = smtp_config[3]
+        smtp_password = smtp_config[4]
+        
+        if smtp_port == 465:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=20)
+        else:
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=20)
+            server.starttls()
+            
+        server.login(smtp_user, smtp_password)
+        server.sendmail(smtp_config[5], recipient_email, msg.as_string())
+        server.quit()
+        
+        return jsonify({'success': True, 'message': 'Email enviado com sucesso!'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/api/reports/send-email', methods=['POST'])
 def api_send_email():

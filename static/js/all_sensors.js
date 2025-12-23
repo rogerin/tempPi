@@ -109,7 +109,7 @@ if (window.__ALL_SENSORS_INIT__) {
         if (downloadBtn) {
             downloadBtn.addEventListener('click', function (e) {
                 e.preventDefault();
-                exportToPDF();
+                openReportModal('download');
             });
         }
 
@@ -117,15 +117,22 @@ if (window.__ALL_SENSORS_INIT__) {
         if (emailBtn) {
             emailBtn.addEventListener('click', function (e) {
                 e.preventDefault();
-                openEmailModal();
+                openReportModal('email');
             });
         }
 
-        // Botão enviar email
-        const sendEmailBtn = document.getElementById('send-email-btn');
-        if (sendEmailBtn) {
-            sendEmailBtn.addEventListener('click', sendEmailReport);
+        // Botões dentro do Modal
+        const btnDownloadPdf = document.getElementById('btn-download-pdf');
+        if (btnDownloadPdf) {
+            btnDownloadPdf.addEventListener('click', exportToPDF);
         }
+
+        const btnSendEmail = document.getElementById('btn-send-email');
+        if (btnSendEmail) {
+            btnSendEmail.addEventListener('click', sendEmailReport);
+        }
+
+
 
         // Paginação
         document.getElementById('prev-page').addEventListener('click', (e) => {
@@ -411,24 +418,21 @@ if (window.__ALL_SENSORS_INIT__) {
     // Exportar para PDF
     async function exportToPDF() {
         try {
-            showLoading(true);
+            updateFilters(); // Garantir filtros atualizados
+            const btn = document.getElementById('btn-download-pdf');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
 
-            // Preparar dados do filtro
-            const filterData = {
-                timeRange: currentFilters.timeRange,
-                startTime: currentFilters.startTime,
-                endTime: currentFilters.endTime,
-                groupBy: currentFilters.groupBy,
-                selectedSensors: currentFilters.selectedSensors,
-                pressureUnit: currentPressureUnit
-            };
+            // Preparar dados com metadados
+            const payload = getReportPayload();
 
             const response = await fetch('/api/reports/generate-pdf', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(filterData)
+                body: JSON.stringify(payload)
             });
 
             if (!response.ok) {
@@ -440,19 +444,27 @@ if (window.__ALL_SENSORS_INIT__) {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `relatorio_sensores_${new Date().toISOString().slice(0, 10)}.pdf`;
+            a.download = `relatorio_${getReportSlug()}_${new Date().toISOString().slice(0, 10)}.pdf`;
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
 
             showToast('PDF gerado com sucesso!', 'success');
-            showLoading(false);
+
+            // Fechar modal após sucesso
+            const reportModal = bootstrap.Modal.getInstance(document.getElementById('reportModal'));
+            if (reportModal) reportModal.hide();
 
         } catch (error) {
             console.error('Erro ao exportar PDF:', error);
             showToast(`Erro ao exportar PDF: ${error.message}`, 'danger');
-            showLoading(false);
+        } finally {
+            const btn = document.getElementById('btn-download-pdf');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
         }
     }
 
@@ -617,14 +629,33 @@ if (window.__ALL_SENSORS_INIT__) {
         return `${value}${unit}`;
     }
 
-    // Abrir modal de envio por email
-    function openEmailModal() {
-        const emailModal = new bootstrap.Modal(document.getElementById('emailModal'));
-        // Limpar campos
-        document.getElementById('email-recipient').value = '';
-        document.getElementById('email-recipient-name').value = '';
-        document.getElementById('email-message').value = '';
-        emailModal.show();
+    // Abrir modal de relatório
+    function openReportModal(tab = 'download') {
+        const reportModalEl = document.getElementById('reportModal');
+        const reportModal = new bootstrap.Modal(reportModalEl);
+
+        // Ativar a tab correta
+        const triggerEl = document.querySelector(`#reportTabs button[data-bs-target="#${tab}-content"]`);
+        bootstrap.Tab.getInstance(triggerEl) || new bootstrap.Tab(triggerEl).show();
+
+        reportModal.show();
+    }
+
+    // Obter payload unificado
+    function getReportPayload() {
+        return {
+            ...currentFilters,
+            operation_name: document.getElementById('report-operation-name').value.trim(),
+            comments: document.getElementById('report-comments').value.trim(),
+            pressureUnit: currentPressureUnit
+        };
+    }
+
+    // Helper para slug do arquivo
+    function getReportSlug() {
+        const opName = document.getElementById('report-operation-name').value.trim();
+        if (opName) return opName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        return 'sensores';
     }
 
     // Enviar relatório por email
@@ -643,19 +674,26 @@ if (window.__ALL_SENSORS_INIT__) {
             return;
         }
 
-        // Atualizar filtros atuais
         updateFilters();
 
-        // Preparar payload
         const payload = {
-            ...currentFilters,
+            ...getReportPayload(),
             recipient_email: recipient,
             recipient_name: document.getElementById('email-recipient-name').value.trim(),
-            message: document.getElementById('email-message').value.trim()
+            // message já está incluso se usarmos os campos do modal, mas o backend espera 'message' no corpo do email?
+            // O backend usa 'message' para o corpo do email. Vamos usar o campo 'Comentários' como message ou adicionar um campo específico?
+            // O usuário pediu "comentarios" no PDF.
+            // Vou manter a estrutura atual do backend que espera 'message' para o corpo.
+            // Mas o modal tem "Comentários" para o PDF.
+            // O ideal seria usar o comentário no PDF E no corpo do email? 
+            // Vamos usar o campo 'Comentários' para o PDF (metadado) e se quiser mensagem no corpo, pode ser o mesmo ou nada.
+            // O layout do backend usa 'message' para o corpo. 
+            // Vamos usar os comentários como mensagem também se não houver um campo "Mensagem" separado.
+            // No HTML removi "Mensagem Adicional" e deixei "Comentários".
+            message: document.getElementById('report-comments').value.trim()
         };
 
-        // Desabilitar botão e mostrar loading
-        const sendBtn = document.getElementById('send-email-btn');
+        const sendBtn = document.getElementById('btn-send-email');
         const originalText = sendBtn.innerHTML;
         sendBtn.disabled = true;
         sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
@@ -663,9 +701,7 @@ if (window.__ALL_SENSORS_INIT__) {
         try {
             const response = await fetch('/api/reports/send-consolidated-email', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
@@ -673,19 +709,15 @@ if (window.__ALL_SENSORS_INIT__) {
 
             if (response.ok && result.success) {
                 showToast(result.message || 'Email enviado com sucesso!', 'success');
-                // Fechar modal
-                const emailModal = bootstrap.Modal.getInstance(document.getElementById('emailModal'));
-                if (emailModal) {
-                    emailModal.hide();
-                }
+                const reportModal = bootstrap.Modal.getInstance(document.getElementById('reportModal'));
+                if (reportModal) reportModal.hide();
             } else {
                 showToast(result.error || 'Erro ao enviar email', 'danger');
             }
         } catch (error) {
             console.error('Erro ao enviar email:', error);
-            showToast('Erro ao enviar email. Verifique sua conexão.', 'danger');
+            showToast('Erro ao enviar email.', 'danger');
         } finally {
-            // Restaurar botão
             sendBtn.disabled = false;
             sendBtn.innerHTML = originalText;
         }

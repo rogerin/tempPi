@@ -886,6 +886,10 @@ def _generate_pdf_bytes(data):
     selected_sensors = data.get('selectedSensors', [])
     pressure_unit = data.get('pressureUnit', 'psi')
     
+    # Metadados
+    operation_name = data.get('operation_name', '')
+    comments = data.get('comments', '')
+    
     # Buscar dados
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
@@ -985,10 +989,13 @@ def _generate_pdf_bytes(data):
     styles = getSampleStyleSheet()
     story = []
     
-    title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=16, alignment=1)
-    story.append(Paragraph("Relatório de Sensores - TempPi", title_style))
-    story.append(Spacer(1, 10))
+    # Cabeçalho
+    story.append(Paragraph("Relatório de Sensores - TempPi", styles['Title']))
     
+    if operation_name:
+         story.append(Paragraph(f"<b>Operação:</b> {operation_name}", styles['Normal']))
+         story.append(Spacer(1, 5))
+         
     filter_info = f"""
     <b>Período:</b> {time_range if not start_time else f'{start_time} a {end_time}'}<br/>
     <b>Sensores:</b> {', '.join([sensor_names.get(s, s) for s in selected_sensors])}
@@ -996,11 +1003,17 @@ def _generate_pdf_bytes(data):
     story.append(Paragraph(filter_info, styles['Normal']))
     story.append(Spacer(1, 10))
     
+    if comments:
+        story.append(Paragraph("<b>Comentários:</b>", styles['Heading3']))
+        story.append(Paragraph(comments.replace('\n', '<br/>'), styles['Normal']))
+        story.append(Spacer(1, 10))
+    
+    # Gráfico
     story.append(Image(img_buffer, width=7*inch, height=4*inch))
     story.append(Spacer(1, 20))
     
     # Estatísticas
-    story.append(Paragraph("Estatísticas", styles['Heading2']))
+    story.append(Paragraph("Estatísticas Resumidas", styles['Heading2']))
     stats_data = [['Sensor', 'Mín', 'Máx', 'Média']]
     for sensor in selected_sensors:
         if sensor in sensor_names:
@@ -1022,6 +1035,50 @@ def _generate_pdf_bytes(data):
             ('GRID', (0,0), (-1,-1), 1, colors.black)
         ]))
         story.append(t)
+        story.append(Spacer(1, 20))
+
+    # Tabela de Dados Completos
+    story.append(Paragraph("Dados Detalhados", styles['Heading2']))
+    
+    # Cabeçalho da tabela completa
+    full_table_header = ['Data/Hora'] + [sensor_names[s] for s in selected_sensors if s in sensor_names]
+    full_table_data = [full_table_header]
+    
+    # Linhas de dados (limitado a 5000 para evitar crash por memória em ranges muito grandes, opcional)
+    # Mas o usuário pediu "todos os dados". Vamos colocar todos.
+    
+    for d in chart_data:
+        row_vals = [datetime.strptime(d['timestamp'], '%Y-%m-%d %H:%M:%S').strftime('%d/%m %H:%M')]
+        has_val = False
+        for sensor in selected_sensors:
+             val = d.get(sensor)
+             if val is not None:
+                 if sensor == 'pressao_gases' and pressure_unit == 'bar':
+                     val = val * 0.0689476
+                     row_vals.append(f"{val:.2f}")
+                 else:
+                     row_vals.append(f"{val:.2f}")
+                 has_val = True
+             else:
+                 row_vals.append("-")
+        
+        # Só adiciona se tiver algum valor relevante
+        if has_val:
+            full_table_data.append(row_vals)
+            
+    # Estilizar tabela grande
+    # Se for muito grande, Table do reportlab pode ser lenta.
+    # Mas para uso típico (alguns milhares) é ok.
+    if len(full_table_data) > 1:
+        # Quebra automática de páginas é gerenciada pelo SimpleDocTemplate
+        t_full = Table(full_table_data, repeatRows=1)
+        t_full.setStyle(TableStyle([
+            ('FONTSIZE', (0,0), (-1,-1), 8),
+            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ]))
+        story.append(t_full)
         
     doc.build(story)
     return pdf_buffer.getvalue()

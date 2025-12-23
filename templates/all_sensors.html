@@ -324,38 +324,73 @@
     </div>
 
     <!-- Modal de Envio por Email -->
-    <div class="modal fade" id="emailModal" tabindex="-1" aria-labelledby="emailModalLabel" aria-hidden="true">
+    <!-- Modal de Relatório Unificado -->
+    <div class="modal fade" id="reportModal" tabindex="-1" aria-labelledby="reportModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="emailModalLabel">Enviar Relatório por Email</h5>
+                    <h5 class="modal-title" id="reportModalLabel">Configurar Relatório</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="email-recipient" class="form-label">Email do Destinatário *</label>
-                        <input type="email" class="form-control" id="email-recipient" required
-                            placeholder="exemplo@email.com">
+                        <label for="report-operation-name" class="form-label">Nome da Operação (Opcional)</label>
+                        <input type="text" class="form-control" id="report-operation-name"
+                            placeholder="Ex: Queima Lote 123">
                     </div>
                     <div class="mb-3">
-                        <label for="email-recipient-name" class="form-label">Nome do Destinatário</label>
-                        <input type="text" class="form-control" id="email-recipient-name" placeholder="Nome (opcional)">
+                        <label for="report-comments" class="form-label">Comentários (Opcional)</label>
+                        <textarea class="form-control" id="report-comments" rows="3"
+                            placeholder="Observações sobre o processo..."></textarea>
                     </div>
-                    <div class="mb-3">
-                        <label for="email-message" class="form-label">Mensagem Adicional</label>
-                        <textarea class="form-control" id="email-message" rows="3"
-                            placeholder="Mensagem personalizada (opcional)"></textarea>
+
+                    <hr>
+
+                    <ul class="nav nav-tabs mb-3" id="reportTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="download-tab" data-bs-toggle="tab"
+                                data-bs-target="#download-content" type="button" role="tab">Baixar PDF</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="email-tab" data-bs-toggle="tab" data-bs-target="#email-content"
+                                type="button" role="tab">Enviar por Email</button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="reportTabContent">
+                        <div class="tab-pane fade show active" id="download-content" role="tabpanel">
+                            <div class="alert alert-info">
+                                <i class="fas fa-download"></i> O PDF será gerado com o gráfico, estatísticas e
+                                <strong>tabela completa de dados</strong>.
+                            </div>
+                            <div class="d-grid">
+                                <button type="button" class="btn btn-primary" id="btn-download-pdf">
+                                    <i class="fas fa-file-pdf"></i> Baixar Relatório PDF
+                                </button>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="email-content" role="tabpanel">
+                            <div class="mb-3">
+                                <label for="email-recipient" class="form-label">Email do Destinatário *</label>
+                                <input type="email" class="form-control" id="email-recipient"
+                                    placeholder="exemplo@email.com">
+                            </div>
+                            <div class="mb-3">
+                                <label for="email-recipient-name" class="form-label">Nome do Destinatário</label>
+                                <input type="text" class="form-control" id="email-recipient-name"
+                                    placeholder="Nome (opcional)">
+                            </div>
+                            <div class="alert alert-warning">
+                                <i class="fas fa-envelope"></i> O relatório completo (pode ser grande) será enviado via
+                                anexo.
+                            </div>
+                            <div class="d-grid">
+                                <button type="button" class="btn btn-success" id="btn-send-email">
+                                    <i class="fas fa-paper-plane"></i> Enviar Email
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="alert alert-info mb-0">
-                        <i class="fas fa-info-circle"></i>
-                        <small>O PDF será gerado com os filtros atualmente selecionados e anexado ao email.</small>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary" id="send-email-btn">
-                        <i class="fas fa-paper-plane"></i> Enviar
-                    </button>
                 </div>
             </div>
         </div>

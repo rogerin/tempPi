@@ -6,47 +6,16 @@ from flask import Flask, render_template, jsonify, request, Response
 from flask_socketio import SocketIO
 import os
 import sqlite3
-import re
 from datetime import datetime, timezone, timedelta
 from check_server_time import check_server_time
+from consolidated_reports import (normalize_date_range, build_snapshot,
+                                  sign_snapshot, read_snapshot, render_pdf)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret-key-for-iot-project'
 socketio = SocketIO(app)
 
 DATABASE_PATH = "sensor_data.db"
-BRAZIL_TZ = timezone(timedelta(hours=-3))
-
-
-def normalize_date_range(start, end, require_both=False):
-    """Normalize ISO filters to the UTC-3 wall time written by dashboard.py."""
-    if require_both and (not start or not end):
-        raise ValueError('Informe o início e o fim do período customizado.')
-
-    def parse(value, is_end=False):
-        if not value:
-            return None
-        try:
-            parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=BRAZIL_TZ)
-            # Include the complete final day/minute at the input's precision.
-            if is_end and re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
-                parsed = parsed.replace(hour=23, minute=59, second=59, microsecond=999999)
-            elif is_end and re.fullmatch(
-                    r'\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})?', value):
-                parsed = parsed.replace(second=59, microsecond=999999)
-            return parsed.astimezone(BRAZIL_TZ)
-        except (ValueError, OverflowError, TypeError, AttributeError):
-            raise ValueError('Data inválida. Informe uma data e hora ISO 8601.') from None
-
-    first, last = parse(start), parse(end, is_end=True)
-    if first and last and first > last:
-        raise ValueError('A data inicial deve ser anterior ou igual à data final.')
-    # Keep the indexed column untouched; SQLite timestamps use a space, not T.
-    return tuple(value.replace(tzinfo=None).isoformat(sep=' ') if value else None
-                 for value in (first, last))
-
 def get_brazil_time():
     """Retorna timestamp atual em GMT-3 (Brasil)"""
     brazil_tz = timezone(timedelta(hours=-3))
@@ -415,105 +384,26 @@ def api_sensor_data(sensor_name):
 
 @app.route('/api/all-sensors/data')
 def api_all_sensors_data():
-    """API para dados consolidados de todos os sensores com filtros avançados."""
+    """One query for the displayed data and the immutable report snapshot."""
     try:
-        # Parâmetros de filtro
-        hours = request.args.get('hours', 24, type=int)
-        start_time = request.args.get('start_time')
-        end_time = request.args.get('end_time')
-        group_by = request.args.get('group_by', 'none')
-
-        start_time, end_time = normalize_date_range(
-            start_time, end_time,
-            require_both='start_time' in request.args or 'end_time' in request.args,
-        )
-        
-        conn = sqlite3.connect(DATABASE_PATH)
-        cursor = conn.cursor()
-        
-        # Construir query base
-        if start_time and end_time:
-            # Período customizado
-            where_clause = "WHERE timestamp >= ? AND timestamp <= ?"
-            params = [start_time, end_time]
-        else:
-            # Período por horas com horário do Brasil
-            now_br = get_brazil_time()
-            start_br = (now_br - timedelta(hours=hours)).strftime('%Y-%m-%d %H:%M:%S')
-            where_clause = "WHERE timestamp >= ?"
-            params = [start_br]
-        
-        # Query base
-        base_query = '''
-            SELECT 
-                timestamp,
-                MAX(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END) as temp_forno,
-                MAX(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END) as torre_nivel_1,
-                MAX(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END) as torre_nivel_2,
-                MAX(CASE WHEN sensor_name = 'Torre Nível 3' THEN temperature END) as torre_nivel_3,
-                MAX(CASE WHEN sensor_name = 'Temp Tanque' THEN temperature END) as temp_tanque,
-                MAX(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END) as temp_gases,
-                MAX(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END) as pressao_gases,
-                MAX(CASE WHEN sensor_name = 'Velocidade' THEN velocity END) as velocity
-            FROM sensor_readings
-            {}
-        '''.format(where_clause)
-        
-        # Aplicar agrupamento se necessário
-        if group_by != 'none':
-            group_interval = get_group_interval(group_by)
-            if group_interval:
-                # Os valores já são UTC-3; não aplicar 'localtime' novamente.
-                
-                group_query = '''
-                    SELECT 
-                        datetime((strftime('%s', timestamp) / {}) * {}, 'unixepoch') as timestamp,
-                        AVG(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END) as temp_forno,
-                        AVG(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END) as torre_nivel_1,
-                        AVG(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END) as torre_nivel_2,
-                        AVG(CASE WHEN sensor_name = 'Torre Nível 3' THEN temperature END) as torre_nivel_3,
-                        AVG(CASE WHEN sensor_name = 'Temp Tanque' THEN temperature END) as temp_tanque,
-                        AVG(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END) as temp_gases,
-                        AVG(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END) as pressao_gases,
-                        AVG(CASE WHEN sensor_name = 'Velocidade' THEN velocity END) as velocity
-                    FROM sensor_readings 
-                    {}
-                    GROUP BY 1
-                    ORDER BY 1
-                '''.format(group_interval, group_interval, where_clause)
-                
-                cursor.execute(group_query, params)
-            else:
-                 # Fallback
-                 cursor.execute(base_query + ' GROUP BY timestamp ORDER BY timestamp', params)
-        else:
-            query = base_query + ' GROUP BY timestamp ORDER BY timestamp'
-            cursor.execute(query, params)
-            
-        rows = cursor.fetchall()
-        conn.close()
-
-        
-        # Converter para lista de dicionários
-        data = []
-        for row in rows:
-            data.append({
-                'timestamp': row[0],
-                'temp_forno': round(row[1], 2) if row[1] is not None else None,
-                'torre_nivel_1': round(row[2], 2) if row[2] is not None else None,
-                'torre_nivel_2': round(row[3], 2) if row[3] is not None else None,
-                'torre_nivel_3': round(row[4], 2) if row[4] is not None else None,
-                'temp_tanque': round(row[5], 2) if row[5] is not None else None,
-                'temp_gases': round(row[6], 2) if row[6] is not None else None,
-                'pressao_gases': round(row[7], 2) if row[7] is not None else None,
-                'velocity': round(row[8], 2) if row[8] is not None else None
-            })
-        
-        return jsonify(data)
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        custom = 'start_time' in request.args or 'end_time' in request.args
+        options = {
+            'timeRange': 'custom' if custom else request.args.get('hours', '24'),
+            'startTime': request.args.get('start_time'),
+            'endTime': request.args.get('end_time'),
+            'groupBy': request.args.get('group_by', 'none'),
+            'pressureUnit': request.args.get('pressure_unit', 'psi'),
+        }
+        if 'sensors' in request.args:
+            options['selectedSensors'] = [s for s in request.args['sensors'].split(',') if s]
+        snapshot = build_snapshot(DATABASE_PATH, options, get_brazil_time())
+        if request.args.get('snapshot') == '1':
+            return jsonify({**snapshot, 'snapshotToken': sign_snapshot(snapshot)})
+        return jsonify(snapshot['data'])
+    except ValueError as error:
+        return jsonify({'error': str(error)}), 400
+    except Exception as error:
+        return jsonify({'error': str(error)}), 500
 
 @app.route('/api/all-sensors/latest')
 def api_all_sensors_latest():
@@ -636,22 +526,6 @@ def api_all_sensors_recent():
         return jsonify(data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-def get_group_interval(group_by):
-    """Converte string de agrupamento para segundos."""
-    intervals = {
-        '2s': 2,
-        '4s': 4,
-        '6s': 6,
-        '10s': 10,
-        '30s': 30,
-        '1min': 60,
-        '5min': 300,
-        '15min': 900,
-        '1hour': 3600,
-        '1day': 86400
-    }
-    return intervals.get(group_by, None)
 
 @app.route('/api/config/smtp', methods=['GET', 'POST'])
 def api_config_smtp():
@@ -872,247 +746,13 @@ def api_test_smtp():
 
 
 def _generate_pdf_bytes(data):
-    """Função auxiliar para gerar bytes do PDF com base nos dados do filtro."""
-    from reportlab.lib.pagesizes import A4
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import inch
-    from reportlab.lib import colors
-    import matplotlib.pyplot as plt
-    import matplotlib.dates as mdates
-    from io import BytesIO
-    import base64
-    import sqlite3
-    
-    # Parâmetros
-    time_range = data.get('timeRange', '24')
-    start_time, end_time = normalize_date_range(
-        data.get('startTime'), data.get('endTime'), require_both=time_range == 'custom',
-    )
-    group_by = data.get('groupBy', 'none')
-    selected_sensors = data.get('selectedSensors', [])
-    pressure_unit = data.get('pressureUnit', 'psi')
-    
-    # Metadados
-    operation_name = data.get('operation_name', '')
-    comments = data.get('comments', '')
-    
-    # Buscar dados
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
-    
-    if start_time and end_time:
-        where_clause = "WHERE timestamp >= ? AND timestamp <= ?"
-        params = [start_time, end_time]
+    """Download and email render the same signed data without querying again."""
+    if 'snapshotToken' in data:
+        snapshot = read_snapshot(data['snapshotToken'])
     else:
-        now_br = get_brazil_time()
-        start_br = (now_br - timedelta(hours=int(time_range))).strftime('%Y-%m-%d %H:%M:%S')
-        where_clause = "WHERE timestamp >= ?"
-        params = [start_br]
-    
-    base_query = '''
-        SELECT 
-            timestamp,
-            MAX(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END) as temp_forno,
-            MAX(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END) as torre_nivel_1,
-            MAX(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END) as torre_nivel_2,
-            MAX(CASE WHEN sensor_name = 'Torre Nível 3' THEN temperature END) as torre_nivel_3,
-            MAX(CASE WHEN sensor_name = 'Temp Tanque' THEN temperature END) as temp_tanque,
-            MAX(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END) as temp_gases,
-            MAX(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END) as pressao_gases,
-            MAX(CASE WHEN sensor_name = 'Velocidade' THEN velocity END) as velocity
-        FROM sensor_readings 
-        {}
-    '''.format(where_clause)
-    
-    # Aplicar agrupamento se necessário
-    if group_by != 'none':
-        group_interval = get_group_interval(group_by)
-        if group_interval:
-            query = '''
-                SELECT 
-                    datetime((strftime('%s', timestamp) / {}) * {}, 'unixepoch') as timestamp,
-                    AVG(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END) as temp_forno,
-                    AVG(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END) as torre_nivel_1,
-                    AVG(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END) as torre_nivel_2,
-                    AVG(CASE WHEN sensor_name = 'Torre Nível 3' THEN temperature END) as torre_nivel_3,
-                    AVG(CASE WHEN sensor_name = 'Temp Tanque' THEN temperature END) as temp_tanque,
-                    AVG(CASE WHEN sensor_name = 'Temp Saída Gases' THEN temperature END) as temp_gases,
-                    AVG(CASE WHEN sensor_name = 'Pressão Gases' THEN pressure END) as pressao_gases,
-                    AVG(CASE WHEN sensor_name = 'Velocidade' THEN velocity END) as velocity
-                FROM sensor_readings 
-                {}
-                GROUP BY 1
-                ORDER BY 1
-            '''.format(group_interval, group_interval, where_clause)
-        else:
-            query = base_query + ' GROUP BY timestamp ORDER BY timestamp'
-    else:
-        query = base_query + ' GROUP BY timestamp ORDER BY timestamp'
-
-    cursor.execute(query, params)
-    rows = cursor.fetchall()
-    conn.close()
-    
-    chart_data = []
-    for row in rows:
-        chart_data.append({
-            'timestamp': row[0],
-            'temp_forno': row[1],
-            'torre_nivel_1': row[2],
-            'torre_nivel_2': row[3],
-            'torre_nivel_3': row[4],
-            'temp_tanque': row[5],
-            'temp_gases': row[6],
-            'pressao_gases': row[7],
-            'velocity': row[8]
-        })
-    
-    if not chart_data:
-        raise ValueError("Nenhum dado encontrado para o período especificado")
-    
-    # Gerar Gráfico
-    import matplotlib
-    matplotlib.use('Agg')
-    plt.figure(figsize=(10, 6))
-    
-    sensor_colors = {
-        'temp_forno': '#e74c3c', 'torre_nivel_1': '#3498db', 'torre_nivel_2': '#2ecc71',
-        'torre_nivel_3': '#f39c12', 'temp_tanque': '#9b59b6', 'temp_gases': '#1abc9c',
-        'pressao_gases': '#e67e22', 'velocity': '#34495e'
-    }
-    sensor_names = {
-        'temp_forno': 'Temp Forno', 'torre_nivel_1': 'Torre Nível 1',
-        'torre_nivel_2': 'Torre Nível 2', 'torre_nivel_3': 'Torre Nível 3',
-        'temp_tanque': 'Temp Tanque', 'temp_gases': 'Temp Gases',
-        'pressao_gases': 'Pressão Gases', 'velocity': 'Velocidade'
-    }
-    
-    timestamps = [datetime.strptime(d['timestamp'], '%Y-%m-%d %H:%M:%S') for d in chart_data]
-    
-    for sensor in selected_sensors:
-        if sensor in sensor_colors:
-            values = [d[sensor] for d in chart_data if d[sensor] is not None]
-            if values:
-                sensor_timestamps = [ts for i, ts in enumerate(timestamps) if chart_data[i][sensor] is not None]
-                plt.plot(sensor_timestamps, values, label=sensor_names[sensor], color=sensor_colors[sensor], linewidth=2)
-    
-    plt.title('Relatório de Sensores - TempPi')
-    plt.xlabel('Tempo')
-    plt.grid(True, alpha=0.3)
-    plt.xticks(rotation=45)
-    
-    # Formatar eixos de data
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%d/%m %H:%M'))
-    plt.gca().xaxis.set_major_locator(mdates.HourLocator(interval=max(1, len(timestamps)//10)))
-    
-    plt.tight_layout()
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-    
-    img_buffer = BytesIO()
-    plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
-    img_buffer.seek(0)
-    plt.close()
-    
-    # Gerar PDF
-    pdf_buffer = BytesIO()
-    doc = SimpleDocTemplate(pdf_buffer, pagesize=A4)
-    styles = getSampleStyleSheet()
-    story = []
-    
-    # Cabeçalho
-    story.append(Paragraph("Relatório de Sensores - TempPi", styles['Title']))
-    
-    if operation_name:
-         story.append(Paragraph(f"<b>Operação:</b> {operation_name}", styles['Normal']))
-         story.append(Spacer(1, 5))
-         
-    filter_info = f"""
-    <b>Período:</b> {time_range if not start_time else f'{start_time} a {end_time}'}<br/>
-    <b>Sensores:</b> {', '.join([sensor_names.get(s, s) for s in selected_sensors])}
-    """
-    story.append(Paragraph(filter_info, styles['Normal']))
-    story.append(Spacer(1, 10))
-    
-    if comments:
-        story.append(Paragraph("<b>Comentários:</b>", styles['Heading3']))
-        story.append(Paragraph(comments.replace('\n', '<br/>'), styles['Normal']))
-        story.append(Spacer(1, 10))
-    
-    # Gráfico
-    story.append(Image(img_buffer, width=7*inch, height=4*inch))
-    story.append(Spacer(1, 20))
-    
-    # Estatísticas
-    story.append(Paragraph("Estatísticas Resumidas", styles['Heading2']))
-    stats_data = [['Sensor', 'Mín', 'Máx', 'Média']]
-    for sensor in selected_sensors:
-        if sensor in sensor_names:
-            values = [d[sensor] for d in chart_data if d[sensor] is not None]
-            if values:
-                stats_data.append([
-                    sensor_names[sensor],
-                    f"{min(values):.2f}",
-                    f"{max(values):.2f}",
-                    f"{sum(values)/len(values):.2f}"
-                ])
-    
-    if len(stats_data) > 1:
-        t = Table(stats_data)
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.grey),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('GRID', (0,0), (-1,-1), 1, colors.black)
-        ]))
-        story.append(t)
-        story.append(Spacer(1, 20))
-
-    # Tabela de Dados Completos
-    story.append(Paragraph("Dados Detalhados", styles['Heading2']))
-    
-    # Cabeçalho da tabela completa
-    full_table_header = ['Data/Hora'] + [sensor_names[s] for s in selected_sensors if s in sensor_names]
-    full_table_data = [full_table_header]
-    
-    # Linhas de dados (limitado a 5000 para evitar crash por memória em ranges muito grandes, opcional)
-    # Mas o usuário pediu "todos os dados". Vamos colocar todos.
-    
-    for d in chart_data:
-        row_vals = [datetime.strptime(d['timestamp'], '%Y-%m-%d %H:%M:%S').strftime('%d/%m %H:%M')]
-        has_val = False
-        for sensor in selected_sensors:
-             val = d.get(sensor)
-             if val is not None:
-                 if sensor == 'pressao_gases' and pressure_unit == 'bar':
-                     val = val * 0.0689476
-                     row_vals.append(f"{val:.2f}")
-                 else:
-                     row_vals.append(f"{val:.2f}")
-                 has_val = True
-             else:
-                 row_vals.append("-")
-        
-        # Só adiciona se tiver algum valor relevante
-        if has_val:
-            full_table_data.append(row_vals)
-            
-    # Estilizar tabela grande
-    # Se for muito grande, Table do reportlab pode ser lenta.
-    # Mas para uso típico (alguns milhares) é ok.
-    if len(full_table_data) > 1:
-        # Quebra automática de páginas é gerenciada pelo SimpleDocTemplate
-        t_full = Table(full_table_data, repeatRows=1)
-        t_full.setStyle(TableStyle([
-            ('FONTSIZE', (0,0), (-1,-1), 8),
-            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-        ]))
-        story.append(t_full)
-        
-    doc.build(story)
-    return pdf_buffer.getvalue()
+        # Preserve API clients that generate reports directly without opening the screen.
+        snapshot = build_snapshot(DATABASE_PATH, data, get_brazil_time())
+    return render_pdf(snapshot, data)
 
 @app.route('/api/reports/generate-pdf', methods=['POST'])
 def api_generate_pdf():

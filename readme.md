@@ -259,8 +259,14 @@ Os cartões de valores atuais são atualizados a cada 5 segundos. O botão **Aut
 ### Relatórios e exportação
 
 - **CSV:** exporta as leituras do período. O botão de Excel/CSV gera `.csv`, não uma planilha `.xlsx`. Na tela consolidada, essa exportação usa o período e mantém as leituras brutas de todos os sensores, sem aplicar o agrupamento do gráfico.
-- **PDF consolidado:** utiliza período, agrupamento, sensores selecionados e unidade de pressão; inclui gráfico, tabela, nome da operação e comentários opcionais.
-- **E-mail:** permite enviar o PDF consolidado pelo modal de relatório. Há também envio de relatório nas páginas de sensor individual e controle.
+- **PDF consolidado:** utiliza os mesmos dados carregados no gráfico, com período, agrupamento, sensores selecionados e unidade de pressão; inclui gráfico, estatísticas, tabela, nome da operação e comentários opcionais. Horários são apresentados em UTC-3 e valores com duas casas decimais.
+- **E-mail:** envia o mesmo PDF disponível para download no modal de relatório. Há também envio de relatório nas páginas de sensor individual e controle.
+
+Para conferir e enviar o mesmo relatório, aplique os filtros em **Atualizar**, abra **Relatório**, baixe o PDF e envie pela aba de e-mail do mesmo modal. Os dados ficam fixados ao abrir o modal: novas leituras e o auto-refresh não alteram esse relatório. Mantendo operação e comentários, o arquivo baixado e o anexo são idênticos. Feche e abra novamente o modal para usar os dados mais recentes.
+
+O período efetivamente carregado aparece acima do gráfico e no modal. Se editar filtros sem atualizar o gráfico, o sistema solicita **Atualizar** antes de abrir um relatório. No PDF, o gráfico usa os mesmos últimos 10.000 registros da tela; estatísticas e tabela incluem todos os registros do período. A conversão PSI/BAR vale igualmente para gráfico, estatísticas e tabela.
+
+Os dados carregados são assinados pelo servidor e enviados pelo navegador ao gerar o PDF, sem uma nova consulta ao histórico. A assinatura vale por 24 horas; após expiração ou reinício do servidor, atualize a tela. Opcionalmente, defina `REPORT_SNAPSHOT_SECRET` no ambiente do processo com uma chave privada e estável para preservar assinaturas após reinícios; se executar múltiplos processos web, todos devem usar a mesma chave. Não é necessário configurar essa variável na execução padrão com um processo.
 
 A tela **Todos os sensores**, o CSV correspondente e o PDF consolidado usam a mesma normalização dos limites de data. Os fluxos de relatório das outras páginas possuem endpoints próprios.
 
@@ -420,14 +426,14 @@ As rotas são implementadas em [sensor_server.py](sensor_server.py).
 | GET | `/api/stats` | Estatísticas gerais. |
 | GET | `/api/health/sensors` | Status dos sensores. |
 | GET | `/api/sensor/<sensor_name>/data` | Histórico individual; parâmetro `hours`. |
-| GET | `/api/all-sensors/data` | Histórico consolidado; `hours` ou `start_time`/`end_time`, mais `group_by`. |
+| GET | `/api/all-sensors/data` | Histórico consolidado; `hours` ou `start_time`/`end_time`, mais `group_by`. Com `snapshot=1`, retorna `{data, filters, snapshotToken}`; aceita `sensors` (IDs separados por vírgulas) e `pressure_unit`. |
 | GET | `/api/all-sensors/latest` | Último conjunto de leituras. |
 | GET | `/api/all-sensors/recent` | Conjuntos recentes; parâmetro `limit`. |
 | GET/POST | `/api/config/smtp` | Consulta e salva SMTP. |
 | POST | `/api/config/test-smtp` | Envia e-mail de teste. |
 | GET/POST | `/api/config/pressure-calibration` | Consulta e salva ganho/offset. |
-| POST | `/api/reports/generate-pdf` | Gera o PDF consolidado. |
-| POST | `/api/reports/send-consolidated-email` | Envia o PDF consolidado por e-mail. |
+| POST | `/api/reports/generate-pdf` | Gera o PDF consolidado a partir de `snapshotToken`, com `operation_name` e `comments` opcionais. |
+| POST | `/api/reports/send-consolidated-email` | Envia o mesmo PDF usando `snapshotToken`, metadados e `recipient_email`. |
 | POST | `/api/reports/send-email` | Relatório do sensor individual. |
 | POST | `/api/report/send` | Relatório solicitado pelo painel de controle. |
 | POST | `/api/admin/reset-sensor-data` | Apaga todas as leituras. |
@@ -457,7 +463,7 @@ python3 -m unittest discover -s tests -v
 node --test tests/test_all_sensors.js
 ```
 
-A suíte usa SQLite temporário, testa o período customizado, fusos, agrupamento, CSV, PDF, validação da interface e diagnóstico do relógio. Não aciona GPIO nem envia e-mails.
+A suíte usa SQLite temporário, testa o período customizado, fusos, agrupamento, CSV, PDF, validação da interface e diagnóstico do relógio. Também compara os bytes do download com o anexo de e-mail, verifica conversão BAR, expiração dos dados, filtros pendentes e respostas fora de ordem. Não aciona GPIO nem envia e-mails reais; SMTP é simulado.
 
 ### Testes de hardware
 
@@ -521,6 +527,7 @@ Os gráficos de visão geral/média da página inicial ainda têm carregadores d
 tempPi/
 ├── dashboard.py                # Coletor, controle, GPIO e painel OpenCV
 ├── sensor_server.py            # HTTP, Socket.IO, consultas e relatórios
+├── consolidated_reports.py     # Consulta única, dados assinados e PDF consolidado
 ├── check_server_time.py        # Diagnóstico do relógio
 ├── requirements.txt            # Dependências Python
 ├── setup_run.sh                # Inicialização integrada

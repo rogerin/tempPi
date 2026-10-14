@@ -6,6 +6,9 @@ if (window.__ALL_SENSORS_INIT__) {
 
     let allSensorsChart = null;
     let autoRefreshInterval = null;
+    let displayedSnapshot = null;
+    let modalSnapshot = null;
+    let loadVersion = 0;
     let currentPressureUnit = 'psi'; // 'psi' ou 'bar'
     let currentFilters = {
         timeRange: '24',
@@ -62,6 +65,9 @@ if (window.__ALL_SENSORS_INIT__) {
     });
 
     function initializeEventListeners() {
+        document.getElementById('reportModal').addEventListener('hidden.bs.modal', () => {
+            modalSnapshot = null;
+        });
         // Período
         document.getElementById('time-range').addEventListener('change', function () {
             const isCustom = this.value === 'custom';
@@ -185,8 +191,8 @@ if (window.__ALL_SENSORS_INIT__) {
         return new Date(date.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 19);
     }
 
-    function validateCustomPeriod() {
-        const { startTime, endTime } = currentFilters;
+    function validateCustomPeriod(filters = currentFilters) {
+        const { startTime, endTime } = filters;
         if (!startTime || !endTime) {
             throw new Error('Informe o início e o fim do período customizado.');
         }
@@ -216,23 +222,53 @@ if (window.__ALL_SENSORS_INIT__) {
             currentFilters.startTime = null;
             currentFilters.endTime = null;
         }
+        const status = document.getElementById('report-data-status');
+        if (status) {
+            status.textContent = displayedSnapshot && filterSignature(currentFilters) !== displayedSnapshot.requestSignature
+                ? 'Filtros alterados. Clique em Atualizar antes de gerar o relatório.' : '';
+        }
+    }
+
+    function filterSignature(filters) {
+        return JSON.stringify(filters);
+    }
+
+    function getDisplayedSnapshot() {
+        updateFilters();
+        if (!displayedSnapshot || !displayedSnapshot.snapshotToken ||
+            displayedSnapshot.requestSignature !== filterSignature(currentFilters)) {
+            throw new Error('Clique em Atualizar para aplicar os filtros antes de gerar o relatório.');
+        }
+        if (!displayedSnapshot.data.length) {
+            throw new Error('Nenhum dado disponível para gerar o relatório.');
+        }
+        if (!displayedSnapshot.filters.selectedSensors.length) {
+            throw new Error('Selecione pelo menos um sensor e clique em Atualizar.');
+        }
+        return displayedSnapshot;
+    }
+
+    function sensorDate(timestamp) {
+        return new Date(`${timestamp.replace(' ', 'T')}-03:00`);
     }
 
     // Carregar dados de todos os sensores
-    async function loadAllSensorsData() {
+    async function loadAllSensorsData(filters) {
         try {
-            const params = new URLSearchParams();
+            const params = new URLSearchParams({
+                snapshot: '1', sensors: filters.selectedSensors.join(','), pressure_unit: filters.pressureUnit
+            });
 
-            if (currentFilters.timeRange === 'custom') {
-                validateCustomPeriod();
-                params.set('start_time', currentFilters.startTime);
-                params.set('end_time', currentFilters.endTime);
+            if (filters.timeRange === 'custom') {
+                validateCustomPeriod(filters);
+                params.set('start_time', filters.startTime);
+                params.set('end_time', filters.endTime);
             } else {
-                params.set('hours', currentFilters.timeRange);
+                params.set('hours', filters.timeRange);
             }
 
-            if (currentFilters.groupBy !== 'none') {
-                params.set('group_by', currentFilters.groupBy);
+            if (filters.groupBy !== 'none') {
+                params.set('group_by', filters.groupBy);
             }
 
             const response = await fetch(`/api/all-sensors/data?${params}`);
@@ -249,7 +285,7 @@ if (window.__ALL_SENSORS_INIT__) {
     }
 
     // Renderizar gráfico consolidado
-    function renderAllSensorsChart(data) {
+    function renderAllSensorsChart(data, filters) {
         const ctx = document.getElementById('all-sensors-chart');
         if (!ctx) return;
 
@@ -264,7 +300,7 @@ if (window.__ALL_SENSORS_INIT__) {
 
         // Preparar dados para o gráfico
         const chartData = data.map(d => ({
-            x: new Date(d.timestamp).getTime(),
+            x: sensorDate(d.timestamp).getTime(),
             temp_forno: d.temp_forno,
             torre_nivel_1: d.torre_nivel_1,
             torre_nivel_2: d.torre_nivel_2,
@@ -288,7 +324,7 @@ if (window.__ALL_SENSORS_INIT__) {
         // Temperaturas (Eixo Y Esquerdo)
         const tempSensors = ['temp_forno', 'torre_nivel_1', 'torre_nivel_2', 'torre_nivel_3', 'temp_tanque', 'temp_gases'];
         tempSensors.forEach(sensor => {
-            if (currentFilters.selectedSensors.includes(sensor)) {
+            if (filters.selectedSensors.includes(sensor)) {
                 datasets.push({
                     label: sensorNames[sensor],
                     data: limitedData.map(d => ({ x: d.x, y: d[sensor] })).filter(d => d.y !== null),
@@ -302,12 +338,12 @@ if (window.__ALL_SENSORS_INIT__) {
         });
 
         // Pressão (Eixo Y Direito)
-        if (currentFilters.selectedSensors.includes('pressao_gases')) {
+        if (filters.selectedSensors.includes('pressao_gases')) {
             datasets.push({
                 label: 'Pressão Gases',
                 data: limitedData.map(d => ({
                     x: d.x,
-                    y: currentPressureUnit === 'bar' ? (d.pressao_gases * 0.0689476) : d.pressao_gases
+                    y: d.pressao_gases === null ? null : (filters.pressureUnit === 'bar' ? d.pressao_gases * 0.0689476 : d.pressao_gases)
                 })).filter(d => d.y !== null),
                 borderColor: sensorColors.pressao_gases,
                 backgroundColor: sensorColors.pressao_gases + '20',
@@ -318,7 +354,7 @@ if (window.__ALL_SENSORS_INIT__) {
         }
 
         // Velocidade (Eixo Y Esquerdo)
-        if (currentFilters.selectedSensors.includes('velocity')) {
+        if (filters.selectedSensors.includes('velocity')) {
             datasets.push({
                 label: 'Velocidade',
                 data: limitedData.map(d => ({ x: d.x, y: d.velocity })).filter(d => d.y !== null),
@@ -343,6 +379,12 @@ if (window.__ALL_SENSORS_INIT__) {
                 scales: {
                     x: {
                         type: 'time',
+                        ticks: {
+                            callback: value => new Date(value).toLocaleString('pt-BR', {
+                                timeZone: 'America/Recife', day: '2-digit', month: '2-digit',
+                                hour: '2-digit', minute: '2-digit'
+                            })
+                        },
                         time: {
                             displayFormats: {
                                 hour: 'HH:mm',
@@ -351,7 +393,7 @@ if (window.__ALL_SENSORS_INIT__) {
                         },
                         title: {
                             display: true,
-                            text: 'Tempo'
+                            text: 'Tempo - Brasil (UTC-3)'
                         }
                     },
                     y: {
@@ -369,7 +411,7 @@ if (window.__ALL_SENSORS_INIT__) {
                         position: 'right',
                         title: {
                             display: true,
-                            text: `Pressão (${currentPressureUnit.toUpperCase()})`
+                            text: `Pressão (${filters.pressureUnit.toUpperCase()})`
                         },
                         grid: {
                             drawOnChartArea: false,
@@ -383,7 +425,7 @@ if (window.__ALL_SENSORS_INIT__) {
                     tooltip: {
                         callbacks: {
                             title: function (context) {
-                                return new Date(context[0].parsed.x).toLocaleString('pt-BR');
+                                return new Date(context[0].parsed.x).toLocaleString('pt-BR', { timeZone: 'America/Recife' });
                             },
                             label: function (context) {
                                 let label = context.dataset.label || '';
@@ -392,11 +434,11 @@ if (window.__ALL_SENSORS_INIT__) {
                                 }
                                 if (context.parsed.y !== null) {
                                     if (context.dataset.label === 'Pressão Gases') {
-                                        label += context.parsed.y.toFixed(2) + ' ' + currentPressureUnit.toUpperCase();
+                                        label += context.parsed.y.toFixed(2) + ' ' + filters.pressureUnit.toUpperCase();
                                     } else if (context.dataset.label === 'Velocidade') {
                                         label += context.parsed.y.toFixed(2);
                                     } else {
-                                        label += context.parsed.y.toFixed(1) + '°C';
+                                        label += context.parsed.y.toFixed(2) + '°C';
                                     }
                                 }
                                 return label;
@@ -410,20 +452,30 @@ if (window.__ALL_SENSORS_INIT__) {
 
     // Carregar gráfico
     async function loadChart() {
+        const version = ++loadVersion;
+        updateFilters();
+        const filters = { ...currentFilters, selectedSensors: [...currentFilters.selectedSensors] };
         try {
             showLoading(true);
-            const data = await loadAllSensorsData();
-
-            // Armazenar e renderizar tabela (ordem decrescente)
-            allData = [...data].reverse();
+            const snapshot = await loadAllSensorsData(filters);
+            if (version !== loadVersion) return;
+            if (!snapshot.snapshotToken || !Array.isArray(snapshot.data)) {
+                throw new Error('Atualize a página para carregar a versão atual dos relatórios.');
+            }
+            displayedSnapshot = { ...snapshot, requestSignature: filterSignature(filters) };
+            allData = [...snapshot.data].reverse();
             renderPaginatedTable(1);
-
-            renderAllSensorsChart(data);
+            renderAllSensorsChart(snapshot.data, snapshot.filters);
+            const period = document.getElementById('loaded-period');
+            if (period) {
+                period.textContent = `Dados carregados: ${snapshot.filters.startTime} a ${snapshot.filters.endTime} (UTC-3)`;
+            }
+            updateFilters();
             updateLastUpdateTime();
-            showLoading(false);
         } catch (error) {
             console.error('Erro ao carregar gráfico:', error);
-            showLoading(false);
+        } finally {
+            if (version === loadVersion) showLoading(false);
         }
     }
 
@@ -447,10 +499,9 @@ if (window.__ALL_SENSORS_INIT__) {
 
     // Exportar para PDF
     async function exportToPDF() {
+        const btn = document.getElementById('btn-download-pdf');
+        const originalText = btn.innerHTML;
         try {
-            updateFilters(); // Garantir filtros atualizados
-            const btn = document.getElementById('btn-download-pdf');
-            const originalText = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
 
@@ -466,7 +517,8 @@ if (window.__ALL_SENSORS_INIT__) {
             });
 
             if (!response.ok) {
-                throw new Error('Falha ao gerar PDF');
+                const details = await response.json().catch(() => ({}));
+                throw new Error(details.error || 'Falha ao gerar PDF');
             }
 
             // Download do PDF
@@ -482,9 +534,7 @@ if (window.__ALL_SENSORS_INIT__) {
 
             showToast('PDF gerado com sucesso!', 'success');
 
-            // Fechar modal após sucesso
-            const reportModal = bootstrap.Modal.getInstance(document.getElementById('reportModal'));
-            if (reportModal) reportModal.hide();
+            // Keep the modal open so email uses the very same frozen report.
 
         } catch (error) {
             console.error('Erro ao exportar PDF:', error);
@@ -589,11 +639,11 @@ if (window.__ALL_SENSORS_INIT__) {
         }
 
         tbody.innerHTML = paginatedData.map(row => {
-            const timestamp = new Date(row.timestamp).toLocaleString('pt-BR');
+            const timestamp = sensorDate(row.timestamp).toLocaleString('pt-BR', { timeZone: 'America/Recife' });
             // Pressão
             let pressaoVal = row.pressao_gases;
             let pressaoUnit = ' PSI';
-            if (currentPressureUnit === 'bar' && pressaoVal !== null) {
+            if (displayedSnapshot.filters.pressureUnit === 'bar' && pressaoVal !== null) {
                 pressaoVal = pressaoVal * 0.0689476;
                 pressaoUnit = ' BAR';
             }
@@ -608,7 +658,7 @@ if (window.__ALL_SENSORS_INIT__) {
                 <td>${formatValue(row.temp_tanque, '°C')}</td>
                 <td>${formatValue(row.temp_gases, '°C')}</td>
                 <td>${formatValue(pressaoVal, pressaoUnit, 2)}</td>
-                <td>${formatValue(row.velocity, ' rpm', 0)}</td>
+                <td>${formatValue(row.velocity, ' rpm', 2)}</td>
             </tr>
         `;
         }).join('');
@@ -637,7 +687,7 @@ if (window.__ALL_SENSORS_INIT__) {
         }
     }
     // formatValue helper atualizado
-    function formatValue(value, unit = '', decimals = 1) {
+    function formatValue(value, unit = '', decimals = 2) {
         if (value === null || value === undefined) {
             return '-';
         }
@@ -651,16 +701,19 @@ if (window.__ALL_SENSORS_INIT__) {
         }
     }
 
-    // Helper para formatar valores
-    function formatValue(value, unit = '') {
-        if (value === null || value === undefined) {
-            return '-';
-        }
-        return `${value}${unit}`;
-    }
-
     // Abrir modal de relatório
     function openReportModal(tab = 'download') {
+        try {
+            modalSnapshot = getDisplayedSnapshot();
+        } catch (error) {
+            showToast(error.message, 'warning');
+            return;
+        }
+        const summary = document.getElementById('report-period-summary');
+        if (summary) {
+            summary.textContent = `Período: ${modalSnapshot.filters.startTime} a ${modalSnapshot.filters.endTime} (UTC-3). ` +
+                `Agrupamento: ${modalSnapshot.filters.groupBy}. Dados fixados ao abrir este relatório.`;
+        }
         const reportModalEl = document.getElementById('reportModal');
         const reportModal = new bootstrap.Modal(reportModalEl);
 
@@ -673,11 +726,11 @@ if (window.__ALL_SENSORS_INIT__) {
 
     // Obter payload unificado
     function getReportPayload() {
+        const snapshot = modalSnapshot || getDisplayedSnapshot();
         return {
-            ...currentFilters,
+            snapshotToken: snapshot.snapshotToken,
             operation_name: document.getElementById('report-operation-name').value.trim(),
-            comments: document.getElementById('report-comments').value.trim(),
-            pressureUnit: currentPressureUnit
+            comments: document.getElementById('report-comments').value.trim()
         };
     }
 
@@ -704,31 +757,17 @@ if (window.__ALL_SENSORS_INIT__) {
             return;
         }
 
-        updateFilters();
-
-        const payload = {
-            ...getReportPayload(),
-            recipient_email: recipient,
-            recipient_name: document.getElementById('email-recipient-name').value.trim(),
-            // message já está incluso se usarmos os campos do modal, mas o backend espera 'message' no corpo do email?
-            // O backend usa 'message' para o corpo do email. Vamos usar o campo 'Comentários' como message ou adicionar um campo específico?
-            // O usuário pediu "comentarios" no PDF.
-            // Vou manter a estrutura atual do backend que espera 'message' para o corpo.
-            // Mas o modal tem "Comentários" para o PDF.
-            // O ideal seria usar o comentário no PDF E no corpo do email? 
-            // Vamos usar o campo 'Comentários' para o PDF (metadado) e se quiser mensagem no corpo, pode ser o mesmo ou nada.
-            // O layout do backend usa 'message' para o corpo. 
-            // Vamos usar os comentários como mensagem também se não houver um campo "Mensagem" separado.
-            // No HTML removi "Mensagem Adicional" e deixei "Comentários".
-            message: document.getElementById('report-comments').value.trim()
-        };
-
         const sendBtn = document.getElementById('btn-send-email');
         const originalText = sendBtn.innerHTML;
-        sendBtn.disabled = true;
-        sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
-
         try {
+            const payload = {
+                ...getReportPayload(),
+                recipient_email: recipient,
+                recipient_name: document.getElementById('email-recipient-name').value.trim(),
+                message: document.getElementById('report-comments').value.trim()
+            };
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
             const response = await fetch('/api/reports/send-consolidated-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -739,14 +778,13 @@ if (window.__ALL_SENSORS_INIT__) {
 
             if (response.ok && result.success) {
                 showToast(result.message || 'Email enviado com sucesso!', 'success');
-                const reportModal = bootstrap.Modal.getInstance(document.getElementById('reportModal'));
-                if (reportModal) reportModal.hide();
+                // Keep this report available for downloading or sending to another recipient.
             } else {
                 showToast(result.error || 'Erro ao enviar email', 'danger');
             }
         } catch (error) {
             console.error('Erro ao enviar email:', error);
-            showToast('Erro ao enviar email.', 'danger');
+            showToast(error.message || 'Erro ao enviar email.', 'danger');
         } finally {
             sendBtn.disabled = false;
             sendBtn.innerHTML = originalText;

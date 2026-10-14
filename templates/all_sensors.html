@@ -190,6 +190,8 @@
             <div class="card">
                 <div class="card-header">
                     <h5><i class="fas fa-chart-line"></i> Visualização Consolidada</h5>
+                    <small id="loaded-period" class="d-block text-muted"></small>
+                    <small id="report-data-status" class="d-block text-warning" role="status"></small>
                 </div>
                 <div class="card-body">
                     <canvas id="all-sensors-chart" width="800" height="400" style="height: 400px;"></canvas>
@@ -339,6 +341,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
+                    <p id="report-period-summary" class="small text-muted"></p>
                     <div class="mb-3">
                         <label for="report-operation-name" class="form-label">Nome da Operação (Opcional)</label>
                         <input type="text" class="form-control" id="report-operation-name"
@@ -367,7 +370,8 @@
                         <div class="tab-pane fade show active" id="download-content" role="tabpanel">
                             <div class="alert alert-info">
                                 <i class="fas fa-download"></i> O PDF será gerado com o gráfico, estatísticas e
-                                <strong>tabela completa de dados</strong>.
+                                <strong>tabela completa de dados</strong>. O download e o e-mail usam os mesmos
+                                dados carregados na tela. Depois de baixar, você pode enviar a mesma versão nesta janela.
                             </div>
                             <div class="d-grid">
                                 <button type="button" class="btn btn-primary" id="btn-download-pdf">
@@ -404,7 +408,7 @@
     {% endblock %}
 
     {% block scripts %}
-    <script src="{{ url_for('static', filename='js/all_sensors.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/all_sensors.js', v='20261014-report-snapshot') }}"></script>
     <style>
         /* Garantir altura fixa para o gráfico */
         .card-body canvas {

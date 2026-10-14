@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 function harness() {
-    const elements = new Map(), requests = [], warnings = [], charts = [];
+    const elements = new Map(), requests = [], warnings = [], charts = [], posts = [];
     let ready;
     const getElement = id => {
         if (!elements.has(id)) elements.set(id, {
@@ -19,25 +19,48 @@ function harness() {
     class FixedDate extends Date {
         constructor(...args) { super(...(args.length ? args : ['2026-10-14T13:00:00Z'])); }
     }
-    const state = { response: [], error: null };
+    const state = { response: [], error: null, snapshotNumber: 0, pending: null,
+        sensors: ['temp_forno'], pressureUnit: 'psi' };
     const context = vm.createContext({
-        window: { showToast: message => warnings.push(message), location: {} },
+        window: { showToast: message => warnings.push(message), location: {},
+            URL: { createObjectURL: () => 'blob:test', revokeObjectURL() {} } },
         document: { getElementById: getElement,
+            createElement: () => ({ click() {} }), body: { appendChild() {}, removeChild() {} },
             addEventListener: (event, callback) => { ready = callback; },
-            querySelectorAll: () => [{ value: 'temp_forno', addEventListener() {} }],
-            querySelector: () => ({ value: 'psi' }) },
+            querySelectorAll: () => state.sensors.map(value => ({ value, addEventListener() {} })),
+            querySelector: () => ({ value: state.pressureUnit }) },
         Date: FixedDate, URLSearchParams, setInterval() {}, clearInterval() {},
         console: { log() {}, error() {}, warn() {} },
         Chart: class { constructor(ctx, config) { charts.push(config); } destroy() {} },
-        fetch: async url => {
+        bootstrap: { Modal: class {
+            constructor(element) { this.element = element; state.modal = this; }
+            show() {}
+            hide() { this.element['hidden.bs.modal']?.(); }
+            static getInstance() { return state.modal || null; }
+        },
+            Tab: class { show() {} static getInstance() { return null; } } },
+        fetch: async (url, options) => {
             requests.push(url);
+            if (options) {
+                posts.push({ url, payload: JSON.parse(options.body) });
+                return { ok: true, json: async () => ({ success: true }), blob: async () => ({}) };
+            }
             if (url.includes('/latest')) return { ok: true, json: async () => ({ pressao_gases: null }) };
-            return { ok: !state.error, json: async () => state.error ? { error: state.error } : state.response };
+            let result = state.response;
+            const params = new URL(url, 'http://localhost').searchParams;
+            if (params.get('snapshot') === '1') {
+                result = { data: state.response, snapshotToken: `snapshot-${++state.snapshotNumber}`,
+                    filters: { startTime: params.get('start_time'), endTime: params.get('end_time'),
+                        selectedSensors: (params.get('sensors') || '').split(','),
+                        pressureUnit: params.get('pressure_unit') || 'psi', groupBy: params.get('group_by') || 'none' } };
+            }
+            if (state.pending) await new Promise(resolve => state.pending.push(resolve));
+            return { ok: !state.error, json: async () => state.error ? { error: state.error } : result };
         },
     });
     vm.runInContext(fs.readFileSync('static/js/all_sensors.js', 'utf8'), context);
     ready();
-    return { getElement, requests, warnings, charts, state,
+    return { getElement, requests, warnings, charts, posts, state,
         async settle() { await new Promise(resolve => setImmediate(resolve)); },
         custom(start, end) {
             getElement('time-range').value = 'custom';
@@ -57,6 +80,41 @@ test('custom default dates use Brazil wall time, not UTC', async () => {
     assert.equal(h.getElement('start-datetime').value, '2026-10-13T10:00');
 });
 
+test('report cannot silently use edited filters that are not displayed yet', async () => {
+    const h = harness();
+    h.state.response = [{ timestamp: '2026-10-14 10:00:00', temp_forno: 374.4 }];
+    await h.settle();
+    await h.getElement('update-chart').click();
+    assert.equal(h.charts.at(-1).data.datasets[0].data[0].y, 374.4);
+    h.custom('2025-11-03T00:00', '2025-11-04T00:00');
+    h.getElement('email-recipient').value = 'client@example.invalid';
+    await h.getElement('btn-send-email').click();
+    assert.equal(h.posts.length, 0);
+    assert.ok(h.warnings.some(message => message.includes('Atualizar')));
+});
+
+test('download and email keep the snapshot opened in the modal despite refresh', async () => {
+    const h = harness();
+    await h.settle();
+    h.custom('2026-10-14T10:00', '2026-10-14T11:00');
+    h.state.response = [{ timestamp: '2026-10-14 10:00:00', temp_forno: 374.4 }];
+    await h.getElement('update-chart').click();
+    h.getElement('export-pdf-download').click({ preventDefault() {} });
+    await h.getElement('btn-download-pdf').click();
+    assert.equal(h.posts.length, 1);
+    assert.ok(h.posts[0].payload.snapshotToken);
+    h.state.response = [{ timestamp: '2026-10-14 10:00:00', temp_forno: 29.31 }];
+    await h.getElement('update-chart').click();
+    h.getElement('email-recipient').value = 'client@example.invalid';
+    await h.getElement('btn-send-email').click();
+    assert.equal(h.posts.length, 2);
+    assert.equal(h.posts[1].payload.snapshotToken, h.posts[0].payload.snapshotToken);
+    assert.equal(h.getElement('btn-download-pdf').disabled, false);
+    await h.getElement('update-chart').click();
+    await h.getElement('btn-download-pdf').click();
+    assert.equal(h.posts[2].payload.snapshotToken, h.posts[0].payload.snapshotToken);
+});
+
 test('invalid custom period shows an error without sending a request', async () => {
     const h = harness();
     await h.settle();
@@ -69,12 +127,52 @@ test('invalid custom period shows an error without sending a request', async () 
     assert.equal(h.warnings.length, 2);
 });
 
+test('a slow earlier query cannot replace the latest chart or report', async () => {
+    const h = harness();
+    await h.settle();
+    h.state.pending = [];
+    h.custom('2026-10-14T10:00', '2026-10-14T11:00');
+    h.state.response = [{ timestamp: '2026-10-14 10:00:00', temp_forno: 29.31 }];
+    const earlier = h.getElement('update-chart').click();
+    h.custom('2026-10-14T12:00', '2026-10-14T13:00');
+    h.state.response = [{ timestamp: '2026-10-14 12:00:00', temp_forno: 374.4 }];
+    const latest = h.getElement('update-chart').click();
+    const latestToken = `snapshot-${h.state.snapshotNumber}`;
+    h.state.pending[1]();
+    await latest;
+    h.state.pending[0]();
+    await earlier;
+    assert.equal(h.charts.at(-1).data.datasets[0].data[0].y, 374.4);
+    assert.match(h.getElement('loaded-period').textContent, /12:00/);
+    h.getElement('export-pdf-download').click({ preventDefault() {} });
+    await h.getElement('btn-download-pdf').click();
+    assert.equal(h.posts[0].payload.snapshotToken, latestToken);
+});
+
 test('server validation errors are visible to the user', async () => {
     const h = harness();
     await h.settle();
     h.state.error = 'Data inválida para o período.';
     await h.getElement('update-chart').click();
     assert.ok(h.warnings.some(message => message.includes(h.state.error)));
+});
+
+test('chart uses Brazil timestamps and BAR values without turning missing pressure into zero', async () => {
+    const h = harness();
+    await h.settle();
+    h.state.sensors = ['pressao_gases', 'velocity'];
+    h.state.pressureUnit = 'bar';
+    h.state.response = [
+        { timestamp: '2026-10-14 10:00:00', pressao_gases: 10, velocity: 12.34 },
+        { timestamp: '2026-10-14 10:05:00', pressao_gases: null, velocity: 12.34 },
+    ];
+    await h.getElement('update-chart').click();
+    const pressure = h.charts.at(-1).data.datasets[0].data;
+    assert.equal(pressure.length, 1);
+    assert.equal(pressure[0].y, 10 * 0.0689476);
+    assert.equal(pressure[0].x, Date.parse('2026-10-14T13:00:00Z'));
+    assert.match(h.getElement('sensors-data-table-body').innerHTML, /0.69 BAR/);
+    assert.match(h.getElement('sensors-data-table-body').innerHTML, /12.34 rpm/);
 });
 
 test('a valid period after an empty result keeps the chart canvas and renders data', async () => {

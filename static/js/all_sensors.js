@@ -72,8 +72,8 @@ if (window.__ALL_SENSORS_INIT__) {
                 const now = new Date();
                 const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-                document.getElementById('end-datetime').value = now.toISOString().slice(0, 16);
-                document.getElementById('start-datetime').value = yesterday.toISOString().slice(0, 16);
+                document.getElementById('end-datetime').value = brazilDateTime(now).slice(0, 16);
+                document.getElementById('start-datetime').value = brazilDateTime(yesterday).slice(0, 16);
             }
 
             updateFilters();
@@ -155,24 +155,43 @@ if (window.__ALL_SENSORS_INIT__) {
         if (exportExcelBtn) {
             exportExcelBtn.addEventListener('click', function (e) {
                 e.preventDefault();
-                let url = '/api/readings/export?';
+                updateFilters();
+                const params = new URLSearchParams();
 
                 if (currentFilters.timeRange === 'custom') {
-                    url += `start=${currentFilters.startTime}&end=${currentFilters.endTime}`;
+                    try {
+                        validateCustomPeriod();
+                    } catch (error) {
+                        showToast(error.message, 'warning');
+                        return;
+                    }
+                    params.set('start', currentFilters.startTime);
+                    params.set('end', currentFilters.endTime);
                 } else {
                     const hours = parseInt(currentFilters.timeRange || 24);
                     const end = new Date();
                     const start = new Date(end.getTime() - (hours * 60 * 60 * 1000));
 
-                    const formatDate = (date) => {
-                        const pad = (n) => n < 10 ? '0' + n : n;
-                        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-                    };
-
-                    url += `start=${formatDate(start)}&end=${formatDate(end)}`;
+                    params.set('start', brazilDateTime(start));
+                    params.set('end', brazilDateTime(end));
                 }
-                window.location.href = url;
+                window.location.href = `/api/readings/export?${params}`;
             });
+        }
+    }
+
+    // The collector writes Brazil wall time (UTC-3), independent of browser timezone.
+    function brazilDateTime(date) {
+        return new Date(date.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 19);
+    }
+
+    function validateCustomPeriod() {
+        const { startTime, endTime } = currentFilters;
+        if (!startTime || !endTime) {
+            throw new Error('Informe o início e o fim do período customizado.');
+        }
+        if (startTime > endTime) {
+            throw new Error('A data inicial deve ser anterior ou igual à data final.');
         }
     }
 
@@ -202,25 +221,30 @@ if (window.__ALL_SENSORS_INIT__) {
     // Carregar dados de todos os sensores
     async function loadAllSensorsData() {
         try {
-            let url = '/api/all-sensors/data?';
+            const params = new URLSearchParams();
 
             if (currentFilters.timeRange === 'custom') {
-                url += `start_time=${currentFilters.startTime}&end_time=${currentFilters.endTime}`;
+                validateCustomPeriod();
+                params.set('start_time', currentFilters.startTime);
+                params.set('end_time', currentFilters.endTime);
             } else {
-                url += `hours=${currentFilters.timeRange}`;
+                params.set('hours', currentFilters.timeRange);
             }
 
             if (currentFilters.groupBy !== 'none') {
-                url += `&group_by=${currentFilters.groupBy}`;
+                params.set('group_by', currentFilters.groupBy);
             }
 
-            const response = await fetch(url);
-            if (!response.ok) throw new Error('Falha ao carregar dados');
+            const response = await fetch(`/api/all-sensors/data?${params}`);
+            if (!response.ok) {
+                const details = await response.json().catch(() => ({}));
+                throw new Error(details.error || 'Falha ao carregar dados');
+            }
             return await response.json();
         } catch (error) {
             console.error('Erro ao carregar dados dos sensores:', error);
             showToast(`Erro ao carregar dados: ${error.message}`, 'danger');
-            return [];
+            throw error;
         }
     }
 
@@ -230,7 +254,11 @@ if (window.__ALL_SENSORS_INIT__) {
         if (!ctx) return;
 
         if (data.length === 0) {
-            ctx.parentElement.innerHTML = '<div class="alert alert-info text-center">Nenhum dado disponível</div>';
+            // Keep the canvas so a later valid interval can render again.
+            if (allSensorsChart) {
+                allSensorsChart.destroy();
+                allSensorsChart = null;
+            }
             return;
         }
 

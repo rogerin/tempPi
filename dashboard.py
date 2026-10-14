@@ -5,6 +5,7 @@
 
 import cv2, numpy as np, random, argparse, time, math, warnings, signal, sqlite3, os
 from datetime import datetime, timezone, timedelta
+from check_server_time import check_server_time
 import socketio
 import json
 import threading
@@ -48,6 +49,7 @@ ap.add_argument("--tambor-pul-pin", type=int, default=19, help="Pino GPIO para P
 ap.add_argument("--tambor-ena-pin", type=int, default=5, help="Pino GPIO para ENA+ Driver Motor Tambor (padrão: 5)")
 
 args = ap.parse_args()
+check_server_time()
 USE_RPI = args.use_rpi
 
 # ============= 2) CONFIGURAÇÕES GLOBAIS =============

@@ -6,13 +6,46 @@ from flask import Flask, render_template, jsonify, request, Response
 from flask_socketio import SocketIO
 import os
 import sqlite3
+import re
 from datetime import datetime, timezone, timedelta
+from check_server_time import check_server_time
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret-key-for-iot-project'
 socketio = SocketIO(app)
 
 DATABASE_PATH = "sensor_data.db"
+BRAZIL_TZ = timezone(timedelta(hours=-3))
+
+
+def normalize_date_range(start, end, require_both=False):
+    """Normalize ISO filters to the UTC-3 wall time written by dashboard.py."""
+    if require_both and (not start or not end):
+        raise ValueError('Informe o início e o fim do período customizado.')
+
+    def parse(value, is_end=False):
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=BRAZIL_TZ)
+            # Include the complete final day/minute at the input's precision.
+            if is_end and re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
+                parsed = parsed.replace(hour=23, minute=59, second=59, microsecond=999999)
+            elif is_end and re.fullmatch(
+                    r'\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})?', value):
+                parsed = parsed.replace(second=59, microsecond=999999)
+            return parsed.astimezone(BRAZIL_TZ)
+        except (ValueError, OverflowError, TypeError, AttributeError):
+            raise ValueError('Data inválida. Informe uma data e hora ISO 8601.') from None
+
+    first, last = parse(start), parse(end, is_end=True)
+    if first and last and first > last:
+        raise ValueError('A data inicial deve ser anterior ou igual à data final.')
+    # Keep the indexed column untouched; SQLite timestamps use a space, not T.
+    return tuple(value.replace(tzinfo=None).isoformat(sep=' ') if value else None
+                 for value in (first, last))
 
 def get_brazil_time():
     """Retorna timestamp atual em GMT-3 (Brasil)"""
@@ -134,8 +167,7 @@ def api_readings():
     """Lista leituras com filtros e paginação fixa de 50 por página."""
     try:
         sensor = request.args.get('sensor')
-        start = request.args.get('start')  # ISO datetime
-        end = request.args.get('end')      # ISO datetime
+        start, end = normalize_date_range(request.args.get('start'), request.args.get('end'))
         page = max(int(request.args.get('page', 1)), 1)
         page_size = 50
         offset = (page - 1) * page_size
@@ -195,6 +227,8 @@ def api_readings():
             'total': total,
             'total_pages': total_pages,
         })
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -203,8 +237,7 @@ def api_readings_export():
     """Exporta leituras em CSV com os mesmos filtros da listagem."""
     try:
         sensor = request.args.get('sensor')
-        start = request.args.get('start')
-        end = request.args.get('end')
+        start, end = normalize_date_range(request.args.get('start'), request.args.get('end'))
 
         where = []
         params = []
@@ -251,6 +284,8 @@ def api_readings_export():
             mimetype='text/csv',
             headers={'Content-Disposition': 'attachment; filename="readings.csv"'}
         )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -387,6 +422,11 @@ def api_all_sensors_data():
         start_time = request.args.get('start_time')
         end_time = request.args.get('end_time')
         group_by = request.args.get('group_by', 'none')
+
+        start_time, end_time = normalize_date_range(
+            start_time, end_time,
+            require_both='start_time' in request.args or 'end_time' in request.args,
+        )
         
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
@@ -420,16 +460,14 @@ def api_all_sensors_data():
         '''.format(where_clause)
         
         # Aplicar agrupamento se necessário
-        # Aplicar agrupamento se necessário
         if group_by != 'none':
             group_interval = get_group_interval(group_by)
             if group_interval:
-                # Agrupar por intervalo de tempo usando unix epoch
-                # datetime((strftime('%s', timestamp) / interval) * interval, 'unixepoch', 'localtime')
+                # Os valores já são UTC-3; não aplicar 'localtime' novamente.
                 
                 group_query = '''
                     SELECT 
-                        datetime((strftime('%s', timestamp) / {}) * {}, 'unixepoch', 'localtime') as timestamp,
+                        datetime((strftime('%s', timestamp) / {}) * {}, 'unixepoch') as timestamp,
                         AVG(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END) as temp_forno,
                         AVG(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END) as torre_nivel_1,
                         AVG(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END) as torre_nivel_2,
@@ -472,6 +510,8 @@ def api_all_sensors_data():
             })
         
         return jsonify(data)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -844,17 +884,11 @@ def _generate_pdf_bytes(data):
     import base64
     import sqlite3
     
-    # Normalizar timestamps
-    def _normalize_ts(ts):
-        if not ts: return None
-        ts = ts.replace('T', ' ')
-        if len(ts) == 16: ts = ts + ':00'
-        return ts
-    
     # Parâmetros
     time_range = data.get('timeRange', '24')
-    start_time = _normalize_ts(data.get('startTime'))
-    end_time = _normalize_ts(data.get('endTime'))
+    start_time, end_time = normalize_date_range(
+        data.get('startTime'), data.get('endTime'), require_both=time_range == 'custom',
+    )
     group_by = data.get('groupBy', 'none')
     selected_sensors = data.get('selectedSensors', [])
     pressure_unit = data.get('pressureUnit', 'psi')
@@ -897,7 +931,7 @@ def _generate_pdf_bytes(data):
         if group_interval:
             query = '''
                 SELECT 
-                    datetime((strftime('%s', timestamp) / {}) * {}, 'unixepoch', 'localtime') as timestamp,
+                    datetime((strftime('%s', timestamp) / {}) * {}, 'unixepoch') as timestamp,
                     AVG(CASE WHEN sensor_name = 'Temp Forno' THEN temperature END) as temp_forno,
                     AVG(CASE WHEN sensor_name = 'Torre Nível 1' THEN temperature END) as torre_nivel_1,
                     AVG(CASE WHEN sensor_name = 'Torre Nível 2' THEN temperature END) as torre_nivel_2,
@@ -1670,6 +1704,7 @@ def handle_dashboard_update(data):
 # ============= INICIALIZAÇÃO =============
 
 if __name__ == '__main__':
+    check_server_time()
     print("🚀 Iniciando servidor Web e WebSocket...")
     print(f"🌐 Acesse o dashboard em http://localhost:3333")
     print(f"🕹️ Acesse o painel de controle em http://localhost:3333/control")

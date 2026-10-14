@@ -71,6 +71,36 @@ O script irá:
 
 Para encerrar tudo, basta fechar a janela do dashboard ou pressionar `Ctrl+C` no terminal.
 
+### Verificação da data/hora do Raspberry Pi
+
+O `setup_run.sh`, o servidor e o dashboard verificam o relógio antes de iniciar a operação. O diagnóstico mostra a hora local e UTC e consulta `timedatectl show --property=NTPSynchronized --value`, com timeout de 5 segundos.
+
+Para executar apenas a checagem, sem dependências extras:
+
+```bash
+python3 check_server_time.py
+```
+
+O comando retorna `0` quando o sistema informa sincronização e `1` quando ela não está confirmada. A inicialização continua com um aviso se o relógio não estiver sincronizado, se `timedatectl` não estiver disponível ou se a consulta falhar. Nenhuma data, configuração ou leitura histórica é alterada automaticamente.
+
+Se houver aviso no Raspberry Pi, confira a conexão de rede e execute:
+
+```bash
+timedatectl status
+sudo timedatectl set-ntp true
+timedatectl show --property=NTPSynchronized --value
+```
+
+Espere a consulta retornar `yes`. A checagem usa o estado de sincronização informado pelo sistema, sem comparar diretamente a hora com um servidor externo.
+
+### Todos os sensores: período customizado
+
+Selecione **Período customizado**, preencha início e fim e clique em **Atualizar**. Os campos usam o horário do Brasil (`UTC-3`), que é o mesmo gravado pelo coletor desta versão. O minuto final é incluído por inteiro: de `10:00` a `11:00` inclui leituras até `11:00:59`.
+
+O filtro normaliza datas ISO para o formato do banco (`AAAA-MM-DD HH:MM:SS`) e rejeita datas inválidas, intervalos invertidos ou incompletos. Tela, CSV e PDF usam a mesma normalização. Datas enviadas à API com `Z` ou deslocamento explícito são convertidas para `UTC-3`; sem fuso, são interpretadas como horário do Brasil. O agrupamento mantém esse horário independentemente do fuso do servidor.
+
+Leituras gravadas anteriormente com o relógio errado continuam com seus horários originais. A pasta `logs/` é ignorada pelo Git; os logs de execução não devem ser versionados.
+
 ## 4) Execução Manual (para Desenvolvimento)
 
 Se preferir iniciar os componentes separadamente:
@@ -118,6 +148,17 @@ O script `dashboard.py` aceita vários argumentos para customização:
 - `--thermo-torre1`, `--ventilador-pin`, etc: Permitem customizar todos os pinos GPIO utilizados. Use `python3 dashboard.py --help` para ver todas as opções.
 
 ## 7) Scripts de Teste
+
+### Regressão do período customizado e relógio (sem hardware)
+
+Com Flask, Flask-SocketIO, Matplotlib e ReportLab instalados no ambiente virtual:
+
+```bash
+python3 -m unittest discover -s tests -v
+node --test tests/test_all_sensors.js
+```
+
+Os testes usam SQLite temporário, validam os filtros de tela/CSV/PDF, os fusos e os estados de sincronização. Os testes JavaScript verificam os eventos da interface usando o executor nativo do Node.js 18+; Node.js não é necessário para rodar o projeto.
 
 O projeto inclui scripts de teste para validar o hardware antes da execução completa:
 

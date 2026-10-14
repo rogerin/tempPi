@@ -43,6 +43,9 @@ trap cleanup INT TERM
 PROJ_DIR=$(dirname "$0")
 cd "$PROJ_DIR" || { echo -e "${RED}Erro ao acessar diretório do projeto${NC}"; exit 1; }
 
+# Diagnóstico visível antes da coleta; aviso não bloqueia a operação offline.
+python3 check_server_time.py || true
+
 # Flag para forçar reinstalação
 FORCE_INSTALL=false
 if [ "$1" == "--force-install" ]; then

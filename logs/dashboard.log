@@ -1,4 +1,0 @@
-Traceback (most recent call last):
-  File "/Users/rogerioalencarfilho/Projetos/iot/tempPi/dashboard.py", line 11, in <module>
-    import board
-ModuleNotFoundError: No module named 'board'

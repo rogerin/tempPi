@@ -41,6 +41,7 @@ logs/*
 
 # Local runtime artifacts
 log.txt
+relatorio_*
 
 # Local settings (keep an example under version control if needed)
 settings.json

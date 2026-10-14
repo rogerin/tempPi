@@ -46,11 +46,16 @@ cd "$PROJ_DIR" || { echo -e "${RED}Erro ao acessar diretório do projeto${NC}"; 
 # Diagnóstico visível antes da coleta; aviso não bloqueia a operação offline.
 python3 check_server_time.py || true
 
-# Flag para forçar reinstalação
+# Flag para forçar reinstalação e repasse de argumentos para o dashboard
 FORCE_INSTALL=false
-if [ "$1" == "--force-install" ]; then
-    FORCE_INSTALL=true
-fi
+DASHBOARD_ARGS=()
+for arg in "$@"; do
+    if [ "$arg" == "--force-install" ]; then
+        FORCE_INSTALL=true
+    else
+        DASHBOARD_ARGS+=("$arg")
+    fi
+done
 
 # Função para verificar conexão com internet
 check_internet() {
@@ -202,7 +207,7 @@ echo -e "${YELLOW}⏳ Aguardando 5 segundos para garantir inicialização comple
 
 echo -e "${YELLOW}=== Iniciando Dashboard ===${NC}"
 echo -e "${BLUE}Pressione Ctrl+C para parar ambos os processos${NC}"
-python3 dashboard.py --img assets/base.jpeg $USE_RPI_FLAG 2>&1 | tee logs/dashboard.log
+python3 dashboard.py --img assets/base.jpeg $USE_RPI_FLAG "${DASHBOARD_ARGS[@]}" 2>&1 | tee logs/dashboard.log
 
 # Cleanup ao sair
 cleanup
